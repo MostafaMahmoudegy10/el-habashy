@@ -11,3 +11,32 @@ Port 5173 is in use, trying another one...
   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.36.1:[1m5174[22m/[39m
   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.72.1:[1m5174[22m/[39m
   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.47:[1m5174[22m/[39m
+[2m10:03:32 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:03:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:04:39 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:05:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:06:24 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:06:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:11:19 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:40:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/types.ts[22m
+[2m10:40:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:40:27 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:41:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:41:46 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:42:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:42:23 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:42:32 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:43:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:43:42 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:43:54 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:44:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:44:18 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:44:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:44:46 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:44:57 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:45:06 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:45:14 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:48:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
+[2m10:49:23 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m10:53:40 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/types.ts[22m
+[2m10:54:44 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles.css[22m
