@@ -1,0 +1,23 @@
+<svg width="900" height="620" viewBox="0 0 900 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="620" rx="40" fill="white"/>
+  <path d="M195 258C260 149 366 112 450 190C534 112 640 149 705 258" stroke="#082646" stroke-width="34" stroke-linecap="round"/>
+  <path d="M207 252C270 162 368 130 450 210C532 130 630 162 693 252" stroke="#0D355E" stroke-width="18" stroke-linecap="round"/>
+  <path d="M450 75C468 112 506 124 540 116C515 151 488 170 450 201C412 170 385 151 360 116C394 124 432 112 450 75Z" fill="#D9A229"/>
+  <path d="M450 75C459 113 478 136 506 144C488 160 468 176 450 201C432 176 412 160 394 144C422 136 441 113 450 75Z" fill="#FFCA45"/>
+  <path d="M184 198L246 402" stroke="#D9A229" stroke-width="12" stroke-linecap="round"/>
+  <path d="M316 198L254 402" stroke="#D9A229" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="184" cy="198" r="17" fill="#FFCA45" stroke="#9B5E08" stroke-width="7"/>
+  <circle cx="316" cy="198" r="17" fill="#FFCA45" stroke="#9B5E08" stroke-width="7"/>
+  <path d="M164 394H338C323 434 292 455 251 455C210 455 179 434 164 394Z" fill="#FFCA45"/>
+  <path d="M164 394H338C324 428 292 445 251 445C210 445 178 428 164 394Z" fill="#D5961E"/>
+  <path d="M584 198L646 402" stroke="#D9A229" stroke-width="12" stroke-linecap="round"/>
+  <path d="M716 198L654 402" stroke="#D9A229" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="584" cy="198" r="17" fill="#FFCA45" stroke="#9B5E08" stroke-width="7"/>
+  <circle cx="716" cy="198" r="17" fill="#FFCA45" stroke="#9B5E08" stroke-width="7"/>
+  <path d="M564 394H738C723 434 692 455 651 455C610 455 579 434 564 394Z" fill="#FFCA45"/>
+  <path d="M564 394H738C724 428 692 445 651 445C610 445 578 428 564 394Z" fill="#D5961E"/>
+  <path d="M394 205H506V258H475V402H425V258H394V205Z" fill="#082646"/>
+  <path d="M407 215H493V243H462V391H438V243H407V215Z" fill="#0D355E"/>
+  <text x="450" y="506" text-anchor="middle" font-family="Tahoma, Arial, sans-serif" font-size="80" font-weight="900" fill="#082646">الحبشي</text>
+  <text x="450" y="570" text-anchor="middle" font-family="Tahoma, Arial, sans-serif" font-size="38" font-weight="800" fill="#082646">شركة اتحاد الخبراء المثمنين</text>
+</svg>
