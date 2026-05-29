@@ -4,6 +4,7 @@ import { FiGrid, FiList, FiSearch, FiSliders } from "react-icons/fi";
 import { categoryLabel, statusLabel } from "../lib/i18n";
 import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
+import { LazyImage } from "../components/LazyImage";
 import { ListingCard } from "../components/ListingCard";
 import { WhatsAppButton } from "../components/WhatsAppButton";
 import type { ListingCategory, ListingStatus } from "../types";
@@ -142,7 +143,7 @@ export function ListingsPage() {
             <div className="grid gap-4">
               {filtered.map((listing) => (
                 <article key={listing.id} className="grid gap-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-950/5 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-center">
-                  <img src={listing.images[0]} alt={listing.title[lang]} className="h-56 w-full rounded-3xl object-cover md:h-44" />
+                  <LazyImage src={listing.images[0]} alt={listing.title[lang]} className="h-56 w-full rounded-3xl object-cover md:h-44" />
                   <div>
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
                       {categoryLabel[listing.category][lang]}

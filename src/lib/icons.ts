@@ -11,5 +11,5 @@ export const categoryIcon: Record<ListingCategory, IconType> = {
   "real-estate": FaBuilding,
   cars: FaCarSide,
   antiques: FaGem,
-  waste: FaRecycle,
+  scrap: FaRecycle,
 };

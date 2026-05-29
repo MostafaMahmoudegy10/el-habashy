@@ -17,6 +17,7 @@ export function Header() {
 
   const navItems: Array<{ id: Page; label: string }> = [
     { id: "home", label: t.home },
+    { id: "about", label: t.about },
     { id: "listings", label: t.listings },
     { id: "dashboard", label: t.dashboard },
   ];

@@ -7,6 +7,7 @@ export function Footer() {
   const { t, navigate } = useApp();
   const links: Array<[Page, string]> = [
     ["home", t.home],
+    ["about", t.about],
     ["listings", t.listings],
     ["login", t.login],
     ["dashboard", t.dashboard],

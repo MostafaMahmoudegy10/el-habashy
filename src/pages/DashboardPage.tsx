@@ -19,6 +19,7 @@ import {
 import { FaWhatsapp } from "react-icons/fa6";
 import { categoryLabel, requestStatusLabel, statusLabel } from "../lib/i18n";
 import { listingToDraft, useApp } from "../context/AppContext";
+import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
 import type { DashboardView, Listing, ListingCategory, ListingDraft, ListingStatus, RequestStatus } from "../types";
 
@@ -120,7 +121,7 @@ export function DashboardPage() {
               <Panel title={t.mostViewedListing} icon={FiBarChart2}>
                 {mostViewed ? (
                   <button type="button" onClick={() => selectListing(mostViewed.id)} className="grid w-full gap-4 rounded-3xl bg-slate-50 p-3 text-start md:grid-cols-[180px_minmax(0,1fr)]">
-                    <img src={mostViewed.images[0]} alt="" className="h-44 w-full rounded-2xl object-cover" />
+                    <LazyImage src={mostViewed.images[0]} alt="" className="h-44 w-full rounded-2xl object-cover" />
                     <span className="py-2">
                       <strong className="block text-2xl font-black text-slate-950">{mostViewed.title[lang]}</strong>
                       <small className="mt-3 block text-sm font-bold leading-6 text-slate-500">{mostViewed.summary[lang]}</small>
@@ -147,7 +148,7 @@ export function DashboardPage() {
             <div className="grid gap-3">
               {listings.map((listing) => (
                 <div key={listing.id} className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-center">
-                  <img src={listing.images[0]} alt="" className="h-28 w-full rounded-2xl object-cover lg:w-28" />
+                  <LazyImage src={listing.images[0]} alt="" className="h-28 w-full rounded-2xl object-cover lg:w-28" />
                   <div>
                     <strong className="line-clamp-1 text-lg font-black text-slate-950">{listing.title[lang]}</strong>
                     <div className="mt-2 flex flex-wrap gap-2 text-xs font-black text-slate-500">
@@ -355,58 +356,60 @@ function ListingForm({
   return (
     <form onSubmit={submit} className="grid gap-6">
       <Panel title={title} icon={FiEdit3} action={<Button type="submit" icon={FiSave}>{submitLabel}</Button>}>
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="grid gap-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label={t.titleAr} value={draft.titleAr} onChange={(value) => patchDraft("titleAr", value)} required />
-              <Field label={t.titleEn} value={draft.titleEn} onChange={(value) => patchDraft("titleEn", value)} />
-              <Select label={t.category} value={draft.category} onChange={(value) => patchDraft("category", value as ListingCategory)}>
-                {(Object.keys(categoryLabel) as ListingCategory[]).map((category) => (
-                  <option key={category} value={category}>{categoryLabel[category][lang]}</option>
-                ))}
-              </Select>
-              <Select label={t.status} value={draft.status} onChange={(value) => patchDraft("status", value as ListingStatus)}>
-                {(Object.keys(statusLabel) as ListingStatus[]).map((status) => (
-                  <option key={status} value={status}>{statusLabel[status][lang]}</option>
-                ))}
-              </Select>
-              <Field label={t.summaryAr} value={draft.summaryAr} onChange={(value) => patchDraft("summaryAr", value)} />
-              <Field label={t.summaryEn} value={draft.summaryEn} onChange={(value) => patchDraft("summaryEn", value)} />
-              <Field label={t.cityAr} value={draft.cityAr} onChange={(value) => patchDraft("cityAr", value)} />
-              <Field label={t.cityEn} value={draft.cityEn} onChange={(value) => patchDraft("cityEn", value)} />
-              <Field label={t.locationAr} value={draft.locationAr} onChange={(value) => patchDraft("locationAr", value)} />
-              <Field label={t.locationEn} value={draft.locationEn} onChange={(value) => patchDraft("locationEn", value)} />
-              <Field label={t.valueAr} value={draft.priceLabelAr} onChange={(value) => patchDraft("priceLabelAr", value)} />
-              <Field label={t.valueEn} value={draft.priceLabelEn} onChange={(value) => patchDraft("priceLabelEn", value)} />
-              <Field label={t.measure} value={draft.measureLabel} onChange={(value) => patchDraft("measureLabel", value)} />
-              <label className="flex min-h-12 items-center gap-2 self-end rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700">
-                <input type="checkbox" checked={draft.featured} onChange={(event) => patchDraft("featured", event.target.checked)} />
-                {t.featured}
-              </label>
+        <div className="grid gap-6">
+          <div className="grid gap-5 rounded-3xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="grid content-start gap-4">
+              <FileInput label={t.thumbnail} button={t.chooseImage} onChange={uploadThumbnail} />
+              <FileInput label={t.galleryImages} button={t.chooseImages} onChange={uploadGallery} multiple />
             </div>
-
-            <div className="grid gap-5 lg:grid-cols-2">
-              <RichTextEditor label={t.descriptionAr} value={draft.descriptionAr} onChange={(value) => patchDraft("descriptionAr", value)} placeholder={t.descriptionAr} />
-              <RichTextEditor label={t.descriptionEn} value={draft.descriptionEn} onChange={(value) => patchDraft("descriptionEn", value)} placeholder={t.descriptionEn} />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label={`${t.seoTitle} AR`} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
-              <Field label={`${t.seoTitle} EN`} value={draft.seoTitleEn} onChange={(value) => patchDraft("seoTitleEn", value)} />
-              <Field label={`${t.seoDescription} AR`} value={draft.seoDescriptionAr} onChange={(value) => patchDraft("seoDescriptionAr", value)} />
-              <Field label={`${t.seoDescription} EN`} value={draft.seoDescriptionEn} onChange={(value) => patchDraft("seoDescriptionEn", value)} />
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)]">
+              <LazyImage src={draft.thumbnail || draft.gallery[0] || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=84"} alt="" className="aspect-[1.85] w-full rounded-3xl object-cover" />
+              <div className="grid grid-cols-3 gap-2">
+                {[draft.thumbnail, ...draft.gallery].filter(Boolean).slice(0, 6).map((image) => (
+                  <LazyImage key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="grid content-start gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <FileInput label={t.thumbnail} button={t.chooseImage} onChange={uploadThumbnail} />
-            <FileInput label={t.galleryImages} button={t.chooseImages} onChange={uploadGallery} multiple />
-            <img src={draft.thumbnail || draft.gallery[0] || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=84"} alt="" className="aspect-[1.25] w-full rounded-3xl object-cover" />
-            <div className="grid grid-cols-3 gap-2">
-              {[draft.thumbnail, ...draft.gallery].filter(Boolean).slice(0, 6).map((image) => (
-                <img key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Field label={t.titleAr} value={draft.titleAr} onChange={(value) => patchDraft("titleAr", value)} required />
+            <Field label={t.titleEn} value={draft.titleEn} onChange={(value) => patchDraft("titleEn", value)} />
+            <Select label={t.category} value={draft.category} onChange={(value) => patchDraft("category", value as ListingCategory)}>
+              {(Object.keys(categoryLabel) as ListingCategory[]).map((category) => (
+                <option key={category} value={category}>{categoryLabel[category][lang]}</option>
               ))}
-            </div>
+            </Select>
+            <Select label={t.status} value={draft.status} onChange={(value) => patchDraft("status", value as ListingStatus)}>
+              {(Object.keys(statusLabel) as ListingStatus[]).map((status) => (
+                <option key={status} value={status}>{statusLabel[status][lang]}</option>
+              ))}
+            </Select>
+            <Field label={t.summaryAr} value={draft.summaryAr} onChange={(value) => patchDraft("summaryAr", value)} />
+            <Field label={t.summaryEn} value={draft.summaryEn} onChange={(value) => patchDraft("summaryEn", value)} />
+            <Field label={t.cityAr} value={draft.cityAr} onChange={(value) => patchDraft("cityAr", value)} />
+            <Field label={t.cityEn} value={draft.cityEn} onChange={(value) => patchDraft("cityEn", value)} />
+            <Field label={t.locationAr} value={draft.locationAr} onChange={(value) => patchDraft("locationAr", value)} />
+            <Field label={t.locationEn} value={draft.locationEn} onChange={(value) => patchDraft("locationEn", value)} />
+            <Field label={t.valueAr} value={draft.priceLabelAr} onChange={(value) => patchDraft("priceLabelAr", value)} />
+            <Field label={t.valueEn} value={draft.priceLabelEn} onChange={(value) => patchDraft("priceLabelEn", value)} />
+            <Field label={t.measure} value={draft.measureLabel} onChange={(value) => patchDraft("measureLabel", value)} />
+            <label className="flex min-h-12 items-center gap-2 self-end rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700">
+              <input type="checkbox" checked={draft.featured} onChange={(event) => patchDraft("featured", event.target.checked)} />
+              {t.featured}
+            </label>
+          </div>
+
+          <div className="grid gap-5">
+            <RichTextEditor label={t.descriptionAr} value={draft.descriptionAr} onChange={(value) => patchDraft("descriptionAr", value)} placeholder={t.descriptionAr} />
+            <RichTextEditor label={t.descriptionEn} value={draft.descriptionEn} onChange={(value) => patchDraft("descriptionEn", value)} placeholder={t.descriptionEn} />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Field label={`${t.seoTitle} AR`} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
+            <Field label={`${t.seoTitle} EN`} value={draft.seoTitleEn} onChange={(value) => patchDraft("seoTitleEn", value)} />
+            <Field label={`${t.seoDescription} AR`} value={draft.seoDescriptionAr} onChange={(value) => patchDraft("seoDescriptionAr", value)} />
+            <Field label={`${t.seoDescription} EN`} value={draft.seoDescriptionEn} onChange={(value) => patchDraft("seoDescriptionEn", value)} />
           </div>
         </div>
       </Panel>
@@ -416,7 +419,7 @@ function ListingForm({
 
 function Panel({ title, icon: Icon, children, action }: { title: string; icon: IconType; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5">
+    <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5 animate-fade-up">
       <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div className="flex items-center gap-3">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-amber-800">

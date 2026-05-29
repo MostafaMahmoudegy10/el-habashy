@@ -115,7 +115,7 @@ export const copy = {
     heroEyebrow: "Premium asset showcase",
     heroTitle: "Organized asset listings without online bidding",
     heroText:
-      "Browse real estate, cars, antiques, and waste assets. Review photos and details, then request the booklet from El Habashy directly.",
+      "Browse real estate, cars, antiques, and scrap assets. Review photos and details, then request the booklet from El Habashy directly.",
     browseListings: "Browse listings",
     requestBooklet: "Request booklet",
     whatsapp: "WhatsApp",
@@ -211,7 +211,7 @@ export const categoryLabel: Record<ListingCategory, Record<Language, string>> = 
   cars: { ar: "سيارات", en: "Cars" },
   "real-estate": { ar: "عقارات", en: "Real Estate" },
   antiques: { ar: "أنتيكات", en: "Antiques" },
-  waste: { ar: "مخلفات", en: "Waste" },
+  scrap: { ar: "مخلفات / سكراب", en: "Scrap" },
 };
 
 export const statusLabel: Record<ListingStatus, Record<Language, string>> = {

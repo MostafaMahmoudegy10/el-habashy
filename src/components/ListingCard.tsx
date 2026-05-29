@@ -3,6 +3,7 @@ import { categoryLabel, statusLabel } from "../lib/i18n";
 import { categoryIcon } from "../lib/icons";
 import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
+import { LazyImage } from "./LazyImage";
 import { WhatsAppButton } from "./WhatsAppButton";
 import type { Listing } from "../types";
 
@@ -18,7 +19,7 @@ export function ListingCard({ listing, elevated = false }: { listing: Listing; e
       }`}
     >
       <div className="relative overflow-hidden">
-        <img
+        <LazyImage
           src={listing.images[0]}
           alt={listing.title[lang]}
           className="aspect-[1.28] w-full object-cover transition duration-700 group-hover:scale-105"

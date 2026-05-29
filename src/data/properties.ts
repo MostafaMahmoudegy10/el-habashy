@@ -115,10 +115,10 @@ export const initialListings: Listing[] = [
   },
   {
     id: 4,
-    slug: "factory-metal-waste",
+    slug: "factory-metal-scrap",
     title: {
       ar: "مخلفات معدنية وسكراب من مصنع",
-      en: "Factory Metal Waste and Industrial Leftovers",
+      en: "Factory Metal Scrap and Industrial Leftovers",
     },
     summary: {
       ar: "مخلفات تشغيل معدنية مصنفة مناسبة للتجار والمصانع.",
@@ -128,7 +128,7 @@ export const initialListings: Listing[] = [
       ar: "<h2>مخلفات صناعية مصنفة</h2><p>الكميات متاحة للفحص بالموقع، ويتم التعامل حسب الوزن والمعاينة النهائية.</p>",
       en: "<h2>Sorted industrial leftovers</h2><p>Quantities are available for site inspection and handled according to weight and final viewing.</p>",
     },
-    category: "waste",
+    category: "scrap",
     status: "active",
     city: { ar: "العاشر من رمضان", en: "10th of Ramadan" },
     location: { ar: "منطقة المصانع - داخل موقع المصنع", en: "Factories District - inside factory site" },

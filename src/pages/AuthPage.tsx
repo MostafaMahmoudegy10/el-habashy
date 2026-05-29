@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { FiLock, FiLogIn, FiMail, FiUser, FiUserPlus } from "react-icons/fi";
 import { Brand } from "../components/Brand";
+import { LazyImage } from "../components/LazyImage";
 import { useApp } from "../context/AppContext";
 
 export function AuthPage({ mode }: { mode: "login" | "register" }) {
@@ -24,9 +25,16 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
     <section className="mx-auto grid min-h-[calc(100vh-170px)] max-w-7xl place-items-center px-4 py-12 lg:px-6">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl shadow-slate-950/10 lg:grid-cols-[0.9fr_1.1fr]">
         <aside className="relative hidden overflow-hidden bg-slate-950 p-8 text-white lg:block">
+          <LazyImage
+            eager
+            src="https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1100&q=84"
+            alt=""
+            wrapperClassName="absolute inset-0 h-full w-full opacity-35"
+            className="h-full w-full object-cover"
+          />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(245,158,11,0.32),transparent_28%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.12),transparent_30%)]" />
           <div className="relative flex h-full flex-col">
-            <Brand />
+            <Brand inverted />
             <div className="mt-auto">
               <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400 text-slate-950">
                 {isRegister ? <FiUserPlus /> : <FiLock />}
@@ -41,7 +49,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           </div>
         </aside>
 
-        <form onSubmit={submit} className="grid gap-5 p-5 sm:p-8">
+        <form onSubmit={submit} className="grid gap-5 p-5 sm:p-8 animate-fade-up">
           <div className="lg:hidden">
             <Brand />
           </div>

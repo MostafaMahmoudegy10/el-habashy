@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { FiDownload, FiFileText, FiHeart, FiMapPin, FiUploadCloud, FiX } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa6";
 import { categoryLabel, customerTypeLabel, statusLabel } from "../lib/i18n";
+import { LazyImage } from "../components/LazyImage";
 import { RichContent } from "../components/RichContent";
 import { ListingCard } from "../components/ListingCard";
 import { WhatsAppButton } from "../components/WhatsAppButton";
@@ -74,7 +75,7 @@ export function ListingDetailsPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <div className="grid gap-3">
           <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-950/10">
-            <img
+            <LazyImage
               src={selectedListing.images[imageIndex] ?? selectedListing.images[0]}
               alt={selectedListing.title[lang]}
               className="aspect-[1.35] w-full rounded-[1.5rem] object-cover"
@@ -90,7 +91,7 @@ export function ListingDetailsPage() {
                   imageIndex === index ? "border-amber-400 ring-4 ring-amber-100" : "border-slate-200"
                 }`}
               >
-                <img src={image} alt="" className="aspect-[1.35] w-full object-cover" />
+                <LazyImage src={image} alt="" className="aspect-[1.35] w-full object-cover" />
               </button>
             ))}
           </div>

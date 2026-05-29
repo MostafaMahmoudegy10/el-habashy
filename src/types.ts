@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export type Language = "ar" | "en";
 
-export type Page = "home" | "listings" | "details" | "login" | "register" | "dashboard";
+export type Page = "home" | "about" | "listings" | "details" | "login" | "register" | "dashboard";
 
 export type DashboardView =
   | "overview"
@@ -15,7 +15,7 @@ export type DashboardView =
 
 export type ListingStatus = "active" | "inactive" | "closed" | "coming-soon";
 
-export type ListingCategory = "cars" | "real-estate" | "antiques" | "waste";
+export type ListingCategory = "cars" | "real-estate" | "antiques" | "scrap";
 
 export type RequestStatus =
   | "NEW"
