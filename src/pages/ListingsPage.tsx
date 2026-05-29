@@ -1,28 +1,34 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { FiFilter, FiSearch } from "react-icons/fi";
+import { FiGrid, FiList, FiSearch, FiSliders } from "react-icons/fi";
 import { categoryLabel, statusLabel } from "../lib/i18n";
+import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
 import { ListingCard } from "../components/ListingCard";
-import { ListingDetails } from "../components/ListingDetails";
+import { WhatsAppButton } from "../components/WhatsAppButton";
 import type { ListingCategory, ListingStatus } from "../types";
 
+type SortMode = "latest" | "views" | "requests";
+
 export function ListingsPage() {
-  const { lang, t, listings, selectedListing } = useApp();
+  const { lang, t, listings, selectListing } = useApp();
   const [search, setSearch] = useState("");
-  const [city, setCity] = useState("all");
   const [category, setCategory] = useState<"all" | ListingCategory>("all");
   const [status, setStatus] = useState<"all" | ListingStatus>("all");
+  const [city, setCity] = useState("all");
+  const [sort, setSort] = useState<SortMode>("latest");
+  const [layout, setLayout] = useState<"grid" | "list">("grid");
 
-  const cities = Array.from(new Set(listings.map((listing) => listing.city[lang])));
+  const cities = useMemo(() => Array.from(new Set(listings.map((listing) => listing.city[lang]))), [lang, listings]);
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return listings.filter((listing) => {
+    const rows = listings.filter((listing) => {
       const blob = [
         listing.title[lang],
+        listing.summary[lang],
+        stripRichText(listing.description[lang]),
         listing.city[lang],
-        listing.area[lang],
-        listing.description[lang],
+        listing.location[lang],
         categoryLabel[listing.category][lang],
         statusLabel[listing.status][lang],
       ]
@@ -31,76 +37,82 @@ export function ListingsPage() {
 
       return (
         (!term || blob.includes(term)) &&
-        (city === "all" || listing.city[lang] === city) &&
         (category === "all" || listing.category === category) &&
-        (status === "all" || listing.status === status)
+        (status === "all" || listing.status === status) &&
+        (city === "all" || listing.city[lang] === city)
       );
     });
-  }, [category, city, lang, listings, search, status]);
+
+    return rows.sort((a, b) => {
+      if (sort === "views") return b.views - a.views;
+      if (sort === "requests") return b.bookletRequests - a.bookletRequests;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }, [category, city, lang, listings, search, sort, status]);
 
   const reset = () => {
     setSearch("");
-    setCity("all");
     setCategory("all");
     setStatus("all");
+    setCity("all");
+    setSort("latest");
   };
 
   return (
-    <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-6">
-      <aside className="h-fit rounded-lg border border-slate-200 bg-white p-4 shadow-card lg:sticky lg:top-24">
-        <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-6 lg:py-10">
+      <aside className="h-fit rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-xl shadow-slate-950/5 backdrop-blur lg:sticky lg:top-28">
+        <div className="mb-5 flex items-center justify-between gap-4">
           <div>
             <span className="text-xs font-black uppercase text-amber-700">{t.filters}</span>
-            <h2 className="mt-1 text-xl font-black">{t.listings}</h2>
+            <h1 className="mt-1 text-2xl font-black text-slate-950">{t.listings}</h1>
           </div>
-          <FiFilter className="text-slate-400" size={22} />
+          <FiSliders className="text-slate-400" size={22} />
         </div>
 
-        <div className="grid gap-3">
-          <label className="grid gap-2 text-sm font-bold text-slate-600">
-            {t.filters}
+        <div className="grid gap-4">
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            {t.searchPlaceholder}
             <span className="relative">
-              <FiSearch className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <FiSearch className="absolute start-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={t.searchPlaceholder}
-                className="h-11 w-full rounded-lg border border-slate-200 bg-stone-50 px-10 text-sm outline-none focus:border-amber-400"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-11 text-sm outline-none transition focus:border-amber-400 focus:bg-white"
               />
             </span>
           </label>
 
-          <Select value={city} onChange={setCity} label={t.allCities}>
-            <option value="all">{t.allCities}</option>
-            {cities.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </Select>
-
-          <Select value={category} onChange={(value) => setCategory(value as "all" | ListingCategory)} label={t.allCategories}>
+          <Select label={t.category} value={category} onChange={(value) => setCategory(value as "all" | ListingCategory)}>
             <option value="all">{t.allCategories}</option>
             {(Object.keys(categoryLabel) as ListingCategory[]).map((item) => (
-              <option key={item} value={item}>
-                {categoryLabel[item][lang]}
-              </option>
+              <option key={item} value={item}>{categoryLabel[item][lang]}</option>
             ))}
           </Select>
 
-          <Select value={status} onChange={(value) => setStatus(value as "all" | ListingStatus)} label={t.allStatuses}>
+          <Select label={t.status} value={status} onChange={(value) => setStatus(value as "all" | ListingStatus)}>
             <option value="all">{t.allStatuses}</option>
             {(Object.keys(statusLabel) as ListingStatus[]).map((item) => (
-              <option key={item} value={item}>
-                {statusLabel[item][lang]}
-              </option>
+              <option key={item} value={item}>{statusLabel[item][lang]}</option>
             ))}
+          </Select>
+
+          <Select label={t.allCities} value={city} onChange={setCity}>
+            <option value="all">{t.allCities}</option>
+            {cities.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </Select>
+
+          <Select label={lang === "ar" ? "الترتيب" : "Sort"} value={sort} onChange={(value) => setSort(value as SortMode)}>
+            <option value="latest">{t.sortLatest}</option>
+            <option value="views">{t.sortViews}</option>
+            <option value="requests">{t.sortRequests}</option>
           </Select>
 
           <button
             type="button"
             onClick={reset}
-            className="mt-1 h-11 rounded-lg border border-slate-200 bg-white text-sm font-black text-slate-700 hover:bg-stone-100"
+            className="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:border-amber-300 hover:bg-amber-50"
           >
             {t.reset}
           </button>
@@ -108,17 +120,55 @@ export function ListingsPage() {
       </aside>
 
       <div className="grid gap-6">
-        <ListingDetails listing={selectedListing} />
-        <div className="grid gap-4 md:grid-cols-2">
-          {filtered.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
-          ))}
-        </div>
-        {!filtered.length ? (
-          <div className="grid min-h-64 place-items-center rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
-            <strong className="text-lg font-black">{t.noResults}</strong>
+        <div className="flex flex-col justify-between gap-4 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5 md:flex-row md:items-center">
+          <div>
+            <span className="text-xs font-black uppercase text-amber-700">{t.listings}</span>
+            <h2 className="mt-1 text-3xl font-black text-slate-950">{filtered.length.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}</h2>
           </div>
-        ) : null}
+          <div className="grid grid-cols-2 rounded-full bg-slate-100 p-1">
+            <LayoutButton active={layout === "grid"} onClick={() => setLayout("grid")} icon={<FiGrid />} />
+            <LayoutButton active={layout === "list"} onClick={() => setLayout("list")} icon={<FiList />} />
+          </div>
+        </div>
+
+        {filtered.length ? (
+          layout === "grid" ? (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {filtered.map((listing) => (
+                <article key={listing.id} className="grid gap-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-950/5 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-center">
+                  <img src={listing.images[0]} alt={listing.title[lang]} className="h-56 w-full rounded-3xl object-cover md:h-44" />
+                  <div>
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
+                      {categoryLabel[listing.category][lang]}
+                    </span>
+                    <h3 className="mt-3 text-2xl font-black text-slate-950">{listing.title[lang]}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm font-semibold leading-7 text-slate-500">{listing.summary[lang]}</p>
+                  </div>
+                  <div className="grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => selectListing(listing.id)}
+                      className="h-11 rounded-full bg-slate-950 px-5 text-sm font-black text-white"
+                    >
+                      {t.viewDetails}
+                    </button>
+                    <WhatsAppButton listing={listing} compact />
+                  </div>
+                </article>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="grid min-h-80 place-items-center rounded-[2rem] border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+            <strong className="text-xl font-black text-slate-950">{t.noResults}</strong>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -136,15 +186,29 @@ function Select({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-2 text-sm font-bold text-slate-600">
+    <label className="grid gap-2 text-sm font-black text-slate-700">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-lg border border-slate-200 bg-stone-50 px-3 text-sm outline-none focus:border-amber-400"
+        className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-amber-400 focus:bg-white"
       >
         {children}
       </select>
     </label>
+  );
+}
+
+function LayoutButton({ active, onClick, icon }: { active: boolean; onClick: () => void; icon: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`grid h-10 w-12 place-items-center rounded-full transition ${
+        active ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-white"
+      }`}
+    >
+      {icon}
+    </button>
   );
 }

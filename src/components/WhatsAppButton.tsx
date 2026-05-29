@@ -19,10 +19,10 @@ export function WhatsAppButton({
       target="_blank"
       rel="noreferrer"
       onClick={() => trackWhatsApp(listing.id)}
-      className={`flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-500 ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 text-sm font-black text-white shadow-lg shadow-emerald-900/10 transition duration-300 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-emerald-900/20 ${className}`}
     >
       <FaWhatsapp size={18} />
-      {compact ? t.whatsappBooklet : t.whatsappBooklet}
+      {compact ? t.whatsapp : t.whatsapp}
     </a>
   );
 }

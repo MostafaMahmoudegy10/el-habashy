@@ -1,29 +1,28 @@
-import { AuthModal } from "./components/AuthModal";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
 import { Toast } from "./components/Toast";
 import { AppProvider, useApp } from "./context/AppContext";
-import { AboutPage } from "./pages/AboutPage";
-import { ComparePage } from "./pages/ComparePage";
+import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
+import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { ListingsPage } from "./pages/ListingsPage";
 
 function AppShell() {
   const { page } = useApp();
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-slate-950 selection:bg-amber-200 selection:text-slate-950">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(180,133,47,0.12),transparent_34%),linear-gradient(180deg,#fffaf0_0%,#f8fafc_36%,#ffffff_100%)] font-sans text-slate-950 selection:bg-amber-200 selection:text-slate-950">
       <Header />
       <main>
         {page === "home" && <HomePage />}
         {page === "listings" && <ListingsPage />}
-        {page === "about" && <AboutPage />}
-        {page === "compare" && <ComparePage />}
+        {page === "details" && <ListingDetailsPage />}
+        {page === "login" && <AuthPage mode="login" />}
+        {page === "register" && <AuthPage mode="register" />}
         {page === "dashboard" && <DashboardPage />}
       </main>
       <Footer />
-      <AuthModal />
       <Toast />
     </div>
   );

@@ -6,51 +6,76 @@ import {
   useMemo,
   useState,
 } from "react";
-import { initialListings, initialSubscribers } from "../data/properties";
+import {
+  initialListings,
+  initialRequests,
+  initialSubscribers,
+  initialUsers,
+} from "../data/properties";
 import { copy } from "../lib/i18n";
+import { sanitizeRichText } from "../lib/richText";
 import type {
-  AuthMode,
+  BookletRequest,
+  CustomerType,
+  DashboardView,
   Language,
   Listing,
   ListingDraft,
   ListingStatus,
   Page,
+  RequestStatus,
+  UploadedFile,
   User,
 } from "../types";
+
+type RequestDraft = {
+  fullName: string;
+  whatsapp: string;
+  email: string;
+  customerType: CustomerType;
+  notes: string;
+  files: UploadedFile[];
+};
 
 type AppContextValue = {
   lang: Language;
   page: Page;
+  dashboardView: DashboardView;
   mobileOpen: boolean;
   listings: Listing[];
+  requests: BookletRequest[];
   subscribers: typeof initialSubscribers;
+  users: User[];
   selectedListing: Listing;
-  savedIds: number[];
-  compareIds: number[];
-  authMode: AuthMode | null;
+  selectedRequest: BookletRequest | null;
   currentUser: User | null;
   toast: string;
   t: (typeof copy)[Language];
   setLang: (lang: Language) => void;
   navigate: (page: Page) => void;
+  setDashboardView: (view: DashboardView) => void;
   setMobileOpen: (value: boolean) => void;
   selectListing: (id: number) => void;
-  toggleSaved: (id: number) => void;
-  toggleCompare: (id: number) => void;
-  getWhatsAppUrl: (listing: Listing) => string;
+  selectRequest: (id: number) => void;
+  getWhatsAppUrl: (listing: Listing, phone?: string) => string;
   trackWhatsApp: (id: number) => void;
+  toggleFavorite: (id: number) => void;
+  completeAuth: (mode: "login" | "register", payload: { name: string; email: string }) => void;
   addListing: (draft: ListingDraft) => void;
-  updateListingStatus: (id: number, status: ListingStatus) => void;
-  toggleFeatured: (id: number) => void;
+  updateListing: (id: number, draft: ListingDraft) => void;
   deleteListing: (id: number) => void;
-  setAuthMode: (mode: AuthMode | null) => void;
-  completeAuth: (mode: AuthMode, name: string) => void;
+  updateListingStatus: (id: number, status: ListingStatus) => void;
+  submitBookletRequest: (listingId: number, draft: RequestDraft) => void;
+  updateRequestStatus: (id: number, status: RequestStatus) => void;
+  updateRequestNotes: (id: number, notes: string) => void;
   setToast: (message: string) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 const ownerWhatsapp = "201000000000";
+const fallbackImage =
+  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
 
 function slugify(value: string) {
   return value
@@ -60,20 +85,82 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function draftToListing(draft: ListingDraft, id: number, current?: Listing): Listing {
+  const images = [draft.thumbnail, ...draft.gallery].filter(Boolean);
+  return {
+    id,
+    slug: current?.slug ?? slugify(draft.titleEn || draft.titleAr || `listing-${id}`),
+    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
+    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr },
+    description: {
+      ar: sanitizeRichText(draft.descriptionAr),
+      en: sanitizeRichText(draft.descriptionEn || draft.descriptionAr),
+    },
+    category: draft.category,
+    status: draft.status,
+    city: { ar: draft.cityAr, en: draft.cityEn || draft.cityAr },
+    location: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr },
+    priceLabel: { ar: draft.priceLabelAr, en: draft.priceLabelEn || draft.priceLabelAr },
+    measureLabel: draft.measureLabel,
+    featured: draft.featured,
+    images: images.length ? images : current?.images ?? [fallbackImage],
+    specs: current?.specs ?? [
+      { label: { ar: "القسم", en: "Category" }, value: { ar: draft.category, en: draft.category } },
+      { label: { ar: "الموقع", en: "Location" }, value: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr } },
+      { label: { ar: "الكمية", en: "Quantity" }, value: { ar: draft.measureLabel, en: draft.measureLabel } },
+    ],
+    createdAt: current?.createdAt ?? new Date().toISOString().slice(0, 10),
+    views: current?.views ?? 0,
+    bookletRequests: current?.bookletRequests ?? 0,
+    whatsappClicks: current?.whatsappClicks ?? 0,
+    seoTitle: { ar: draft.seoTitleAr, en: draft.seoTitleEn },
+    seoDescription: { ar: draft.seoDescriptionAr, en: draft.seoDescriptionEn },
+  };
+}
+
+export function listingToDraft(listing?: Listing): ListingDraft {
+  return {
+    titleAr: listing?.title.ar ?? "",
+    titleEn: listing?.title.en ?? "",
+    category: listing?.category ?? "real-estate",
+    status: listing?.status ?? "active",
+    thumbnail: listing?.images[0] ?? "",
+    gallery: listing?.images.slice(1) ?? [],
+    descriptionAr: listing?.description.ar ?? "",
+    descriptionEn: listing?.description.en ?? "",
+    summaryAr: listing?.summary.ar ?? "",
+    summaryEn: listing?.summary.en ?? "",
+    locationAr: listing?.location.ar ?? "",
+    locationEn: listing?.location.en ?? "",
+    cityAr: listing?.city.ar ?? "",
+    cityEn: listing?.city.en ?? "",
+    priceLabelAr: listing?.priceLabel.ar ?? "",
+    priceLabelEn: listing?.priceLabel.en ?? "",
+    measureLabel: listing?.measureLabel ?? "",
+    seoTitleAr: listing?.seoTitle?.ar ?? "",
+    seoTitleEn: listing?.seoTitle?.en ?? "",
+    seoDescriptionAr: listing?.seoDescription?.ar ?? "",
+    seoDescriptionEn: listing?.seoDescription?.en ?? "",
+    featured: listing?.featured ?? false,
+  };
+}
+
 export function AppProvider({ children }: PropsWithChildren) {
   const [lang, setLang] = useState<Language>("ar");
   const [page, setPage] = useState<Page>("home");
+  const [dashboardView, setDashboardView] = useState<DashboardView>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [listings, setListings] = useState<Listing[]>(initialListings);
+  const [requests, setRequests] = useState<BookletRequest[]>(initialRequests);
+  const [users, setUsers] = useState<User[]>(initialUsers);
   const [selectedListingId, setSelectedListingId] = useState(initialListings[0].id);
-  const [savedIds, setSavedIds] = useState<number[]>([2]);
-  const [compareIds, setCompareIds] = useState<number[]>([1, 2]);
-  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(initialRequests[0]?.id ?? null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
 
   const t = copy[lang];
   const selectedListing = listings.find((listing) => listing.id === selectedListingId) ?? listings[0];
+  const selectedRequest = requests.find((request) => request.id === selectedRequestId) ?? null;
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -82,7 +169,7 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(""), 2400);
+    const timeout = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
@@ -90,13 +177,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     () => ({
       lang,
       page,
+      dashboardView,
       mobileOpen,
       listings,
+      requests,
       subscribers: initialSubscribers,
+      users,
       selectedListing,
-      savedIds,
-      compareIds,
-      authMode,
+      selectedRequest,
       currentUser,
       toast,
       t,
@@ -105,126 +193,153 @@ export function AppProvider({ children }: PropsWithChildren) {
         setPage(nextPage);
         setMobileOpen(false);
       },
+      setDashboardView(view) {
+        setDashboardView(view);
+        setPage("dashboard");
+        setMobileOpen(false);
+      },
       setMobileOpen,
       selectListing(id) {
         setSelectedListingId(id);
-        setPage("listings");
+        setListings((current) =>
+          current.map((listing) => (listing.id === id ? { ...listing, views: listing.views + 1 } : listing)),
+        );
+        setPage("details");
         setMobileOpen(false);
       },
-      toggleSaved(id) {
-        setSavedIds((current) =>
-          current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-        );
-        setToast(t.toastUpdated);
+      selectRequest(id) {
+        setSelectedRequestId(id);
+        setDashboardView("request-details");
+        setPage("dashboard");
       },
-      toggleCompare(id) {
-        setCompareIds((current) => {
-          if (current.includes(id)) return current.filter((item) => item !== id);
-          return [...current, id].slice(-3);
-        });
-        setToast(t.toastUpdated);
-      },
-      getWhatsAppUrl(listing) {
+      getWhatsAppUrl(listing, phone = ownerWhatsapp) {
         const message =
           lang === "ar"
-            ? `أهلاً، محتاج كراسة الشروط الخاصة بـ ${listing.title.ar}`
-            : `Hello, I need the Terms Booklet for ${listing.title.en}`;
-        return `https://wa.me/${ownerWhatsapp}?text=${encodeURIComponent(message)}`;
+            ? `أهلا، أحتاج كراسة الشروط الخاصة بـ ${listing.title.ar}`
+            : `Hello, I need the terms booklet for ${listing.title.en}`;
+        return `https://wa.me/${phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(message)}`;
       },
       trackWhatsApp(id) {
         setListings((current) =>
           current.map((listing) =>
-            listing.id === id
-              ? {
-                  ...listing,
-                  bookletClicks: listing.bookletClicks + 1,
-                  whatsappClicks: listing.whatsappClicks + 1,
-                }
-              : listing,
+            listing.id === id ? { ...listing, whatsappClicks: listing.whatsappClicks + 1 } : listing,
           ),
         );
-        setToast(t.directWhatsappReady);
+      },
+      toggleFavorite(id) {
+        if (!currentUser) {
+          setToast(t.favoriteLoginRequired);
+          setPage("login");
+          return;
+        }
+        setCurrentUser((user) =>
+          user
+            ? {
+                ...user,
+                favorites: user.favorites.includes(id)
+                  ? user.favorites.filter((item) => item !== id)
+                  : [...user.favorites, id],
+              }
+            : user,
+        );
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === currentUser.id
+              ? {
+                  ...user,
+                  favorites: user.favorites.includes(id)
+                    ? user.favorites.filter((item) => item !== id)
+                    : [...user.favorites, id],
+                }
+              : user,
+          ),
+        );
+      },
+      completeAuth(mode, payload) {
+        const existing = users.find((user) => user.email.toLowerCase() === payload.email.toLowerCase());
+        const user =
+          existing ??
+          {
+            id: Math.max(0, ...users.map((item) => item.id)) + 1,
+            name: payload.name || payload.email.split("@")[0],
+            email: payload.email,
+            role: "customer" as const,
+            favorites: [],
+          };
+
+        if (!existing) setUsers((current) => [...current, user]);
+        setCurrentUser(user);
+        setToast(mode === "register" ? t.accountReady : t.loginReady);
+        setPage("home");
       },
       addListing(draft) {
-        const nextId = Math.max(...listings.map((listing) => listing.id)) + 1;
-        const nextListing: Listing = {
-          id: nextId,
-          slug: slugify(draft.titleEn || draft.titleAr || `listing-${nextId}`),
-          title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
-          category: draft.category,
-          status: draft.status,
-          city: { ar: draft.cityAr, en: draft.cityEn || draft.cityAr },
-          area: { ar: draft.areaAr, en: draft.areaEn || draft.areaAr },
-          location: { ar: draft.areaAr, en: draft.areaEn || draft.areaAr },
-          description: {
-            ar: "عرض تمت إضافته من لوحة التحكم وجاهز للربط بالباك إند.",
-            en: "Listing added from the dashboard and ready for backend integration.",
-          },
-          priceLabel: { ar: draft.priceLabelAr, en: draft.priceLabelEn || draft.priceLabelAr },
-          price: 0,
-          measureLabel: draft.measureLabel,
-          featured: draft.featured,
-          images: [
-            draft.image ||
-              "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1400&q=82",
-          ],
-          documents: [
-            { ar: "كراسة الشروط", en: "Terms Booklet" },
-            { ar: "ملخص العرض", en: "Listing Summary" },
-          ],
-          tags: [
-            { ar: "جديد", en: "New" },
-            { ar: draft.status === "active" ? "نشط" : "منتهي", en: draft.status },
-          ],
-          visits: 0,
-          bookletClicks: 0,
-          whatsappClicks: 0,
-        };
+        const nextId = Math.max(0, ...listings.map((listing) => listing.id)) + 1;
+        const nextListing = draftToListing(draft, nextId);
         setListings((current) => [nextListing, ...current]);
-        setSelectedListingId(nextListing.id);
-        setToast(t.toastListingAdded);
+        setSelectedListingId(nextId);
+        setToast(t.success);
       },
-      updateListingStatus(id, status) {
+      updateListing(id, draft) {
         setListings((current) =>
-          current.map((listing) => (listing.id === id ? { ...listing, status } : listing)),
+          current.map((listing) => (listing.id === id ? draftToListing(draft, id, listing) : listing)),
         );
-        setToast(t.toastUpdated);
-      },
-      toggleFeatured(id) {
-        setListings((current) =>
-          current.map((listing) =>
-            listing.id === id ? { ...listing, featured: !listing.featured } : listing,
-          ),
-        );
-        setToast(t.toastUpdated);
+        setToast(t.success);
       },
       deleteListing(id) {
         setListings((current) => current.filter((listing) => listing.id !== id));
-        setToast(t.toastUpdated);
+        setToast(t.success);
       },
-      setAuthMode,
-      completeAuth(mode, name) {
-        setCurrentUser({
-          name,
-          role: mode === "login" ? "admin" : "customer",
-        });
-        setAuthMode(null);
-        setToast(t.accountReady);
+      updateListingStatus(id, status) {
+        setListings((current) => current.map((listing) => (listing.id === id ? { ...listing, status } : listing)));
+      },
+      submitBookletRequest(listingId, draft) {
+        const nextId = Math.max(0, ...requests.map((request) => request.id)) + 1;
+        const nextRequest: BookletRequest = {
+          id: nextId,
+          listingId,
+          fullName: draft.fullName,
+          whatsapp: draft.whatsapp,
+          email: draft.email,
+          customerType: draft.customerType,
+          notes: draft.notes,
+          files: draft.files,
+          status: "NEW",
+          internalNotes: "",
+          createdAt: new Date().toISOString().slice(0, 10),
+        };
+        setRequests((current) => [nextRequest, ...current]);
+        setListings((current) =>
+          current.map((listing) =>
+            listing.id === listingId
+              ? { ...listing, bookletRequests: listing.bookletRequests + 1 }
+              : listing,
+          ),
+        );
+        setToast(t.requestSuccess);
+      },
+      updateRequestStatus(id, status) {
+        setRequests((current) => current.map((request) => (request.id === id ? { ...request, status } : request)));
+      },
+      updateRequestNotes(id, notes) {
+        setRequests((current) =>
+          current.map((request) => (request.id === id ? { ...request, internalNotes: notes } : request)),
+        );
       },
       setToast,
     }),
     [
-      authMode,
-      compareIds,
       currentUser,
+      dashboardView,
       lang,
       listings,
       mobileOpen,
       page,
-      savedIds,
+      requests,
       selectedListing,
+      selectedRequest,
       t,
       toast,
+      users,
     ],
   );
 

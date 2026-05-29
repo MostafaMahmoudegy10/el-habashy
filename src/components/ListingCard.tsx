@@ -1,96 +1,106 @@
-import { FiEye, FiGrid, FiHeart, FiMapPin, FiStar } from "react-icons/fi";
+import { FiArrowUpRight, FiBookmark, FiEye, FiFileText, FiHeart, FiMapPin } from "react-icons/fi";
 import { categoryLabel, statusLabel } from "../lib/i18n";
 import { categoryIcon } from "../lib/icons";
+import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
 import { WhatsAppButton } from "./WhatsAppButton";
 import type { Listing } from "../types";
 
-export function ListingCard({ listing }: { listing: Listing }) {
-  const { lang, t, savedIds, compareIds, selectListing, toggleSaved, toggleCompare } = useApp();
+export function ListingCard({ listing, elevated = false }: { listing: Listing; elevated?: boolean }) {
+  const { lang, t, currentUser, selectListing, toggleFavorite } = useApp();
   const CategoryIcon = categoryIcon[listing.category];
-  const saved = savedIds.includes(listing.id);
-  const compared = compareIds.includes(listing.id);
+  const favorite = Boolean(currentUser?.favorites.includes(listing.id));
 
   return (
-    <article className="animate-fade-up overflow-hidden rounded-lg border border-slate-200 bg-white shadow-card transition hover:-translate-y-1 hover:shadow-soft">
-      <div className="relative aspect-[1.35] overflow-hidden bg-slate-100">
-        <img src={listing.images[0]} alt={listing.title[lang]} className="h-full w-full object-cover" />
-        <div className="absolute start-3 top-3 flex flex-wrap gap-2">
-          <span
-            className={`rounded-md px-2.5 py-1 text-xs font-black ring-1 ${
-              listing.status === "active"
-                ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                : "bg-slate-100 text-slate-600 ring-slate-200"
+    <article
+      className={`group overflow-hidden rounded-3xl border border-slate-200 bg-white transition duration-500 hover:-translate-y-1 hover:border-amber-300 ${
+        elevated ? "shadow-2xl shadow-slate-950/10" : "shadow-sm hover:shadow-xl hover:shadow-slate-950/10"
+      }`}
+    >
+      <div className="relative overflow-hidden">
+        <img
+          src={listing.images[0]}
+          alt={listing.title[lang]}
+          className="aspect-[1.28] w-full object-cover transition duration-700 group-hover:scale-105"
+        />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-950 shadow-sm backdrop-blur">
+            <CategoryIcon className="text-amber-600" />
+            {categoryLabel[listing.category][lang]}
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleFavorite(listing.id)}
+            className={`grid h-10 w-10 place-items-center rounded-full shadow-sm backdrop-blur transition ${
+              favorite ? "bg-rose-500 text-white" : "bg-white/90 text-slate-700 hover:bg-rose-50 hover:text-rose-600"
             }`}
+            aria-label={t.addFavorite}
           >
+            <FiHeart fill={favorite ? "currentColor" : "none"} />
+          </button>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/75 to-transparent p-4">
+          <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-black text-slate-950">
             {statusLabel[listing.status][lang]}
           </span>
-          {listing.featured ? (
-            <span className="inline-flex items-center gap-1 rounded-md bg-slate-950 px-2.5 py-1 text-xs font-black text-amber-300">
-              <FiStar />
-              {t.featuredListings}
-            </span>
-          ) : null}
         </div>
       </div>
 
-      <div className="grid gap-4 p-4">
+      <div className="grid gap-4 p-5">
         <div>
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs font-black text-slate-500">
-            <span className="inline-flex items-center gap-1">
-              <CategoryIcon />
-              {categoryLabel[listing.category][lang]}
-            </span>
-            <span>{listing.measureLabel}</span>
-          </div>
-          <h3 className="line-clamp-2 min-h-14 text-lg font-black leading-7">{listing.title[lang]}</h3>
+          <button type="button" onClick={() => selectListing(listing.id)} className="text-start">
+            <h3 className="line-clamp-2 min-h-16 text-xl font-black leading-8 text-slate-950">
+              {listing.title[lang]}
+            </h3>
+          </button>
           <p className="mt-2 line-clamp-2 min-h-12 text-sm font-semibold leading-6 text-slate-500">
-            {listing.description[lang]}
+            {listing.summary[lang] || stripRichText(listing.description[lang])}
           </p>
         </div>
 
         <div className="grid gap-2 text-sm font-bold text-slate-500">
           <span className="flex items-center gap-2">
-            <FiMapPin />
-            {listing.city[lang]} · {listing.area[lang]}
+            <FiMapPin className="text-amber-600" />
+            {listing.city[lang]}
           </span>
-          <strong className="text-slate-950">{listing.priceLabel[lang]}</strong>
+          <strong className="text-base text-slate-950">{listing.priceLabel[lang]}</strong>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <WhatsAppButton listing={listing} className="col-span-2" />
+        <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
+          <MiniStat icon={FiEye} value={listing.views} />
+          <MiniStat icon={FiFileText} value={listing.bookletRequests} />
+          <MiniStat icon={FiBookmark} value={listing.measureLabel} text />
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <button
             type="button"
             onClick={() => selectListing(listing.id)}
-            className="flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-sm font-black text-slate-700 hover:bg-stone-100"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 transition hover:border-amber-300 hover:bg-amber-50"
           >
-            <FiEye />
-            {t.details}
+            {t.viewDetails}
+            <FiArrowUpRight />
           </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => toggleSaved(listing.id)}
-              className={`grid h-10 place-items-center rounded-lg border ${
-                saved ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 text-slate-600"
-              }`}
-              aria-label={saved ? t.saved : t.save}
-            >
-              <FiHeart fill={saved ? "currentColor" : "none"} />
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleCompare(listing.id)}
-              className={`grid h-10 place-items-center rounded-lg border ${
-                compared ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-600"
-              }`}
-              aria-label={t.compare}
-            >
-              <FiGrid />
-            </button>
-          </div>
+          <WhatsAppButton listing={listing} compact className="px-4" />
         </div>
       </div>
     </article>
+  );
+}
+
+function MiniStat({
+  icon: Icon,
+  value,
+  text,
+}: {
+  icon: typeof FiEye;
+  value: number | string;
+  text?: boolean;
+}) {
+  return (
+    <span className="grid gap-1 text-xs font-black text-slate-500">
+      <Icon className="mx-auto text-amber-600" />
+      <span className={text ? "truncate" : ""}>{typeof value === "number" ? value.toLocaleString() : value}</span>
+    </span>
   );
 }

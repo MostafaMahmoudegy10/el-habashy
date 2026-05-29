@@ -1,0 +1,24 @@
+[2m11:06:05 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31merror while updating dependencies:
+Error: ENOENT: no such file or directory, open 'D:\el-habashy-recovered\el-habashy-front\node_modules\lucide-react\dist\esm\lucide-react.js'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1242:14)
+    at async extractExportsData (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15346:24)
+    at async file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15092:27
+    at async Promise.all (index 4)
+    at async prepareEsbuildOptimizerRun (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15089:3)[39m
+[2m11:06:05 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31merror while updating dependencies:
+Error: ENOENT: no such file or directory, open 'D:\el-habashy-recovered\el-habashy-front\node_modules\lucide-react\dist\esm\lucide-react.js'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1242:14)
+    at async extractExportsData (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15346:24)
+    at async file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15092:27
+    at async Promise.all (index 4)
+    at async prepareEsbuildOptimizerRun (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15089:3)[39m
+[2m11:08:36 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31merror while updating dependencies:
+Error: ENOENT: no such file or directory, open 'D:\el-habashy-recovered\el-habashy-front\node_modules\lucide-react\dist\esm\lucide-react.js'
+    at async open (node:internal/fs/promises:638:25)
+    at async Object.readFile (node:internal/fs/promises:1242:14)
+    at async extractExportsData (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15346:24)
+    at async file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15092:27
+    at async Promise.all (index 4)
+    at async prepareEsbuildOptimizerRun (file:///D:/el-habashy-recovered/el-habashy-front/node_modules/vite/dist/node/chunks/dep-Dq2t6Dq0.js:15089:3)[39m
