@@ -1,4 +1,157 @@
-import type { BookletRequest, Listing, Subscriber, User } from "../types";
+import type { AboutContent, AppSettings, Listing, Sector, Subscriber, User } from "../types";
+
+export const initialSettings: AppSettings = {
+  whatsappNumber: "201000000000",
+  whatsappMessageAr: "أهلا، أحتاج تفاصيل المزاد الخاصة بـ {title}",
+  whatsappMessageEn: "Hello, I need the auction details for {title}",
+  whatsappMessageFr: "Bonjour, je souhaite recevoir les details de l'enchere {title}",
+  contactPhone: "25789288 - 202 / 25780424 -202 / 25780425 -202",
+  contactEmail: "info@elhabashy.com",
+  officeAddress: {
+    ar: "22 ش محمود بسيوني - قصر النيل - القاهرة",
+    en: "22 Mahmoud Bassiouny St. - Kasr El Nil - Cairo",
+    fr: "22 rue Mahmoud Bassiouny - Kasr El Nil - Le Caire",
+  },
+  mapUrl: "https://maps.google.com/?q=22%20Mahmoud%20Bassiouny%20St%20Kasr%20El%20Nil%20Cairo",
+  facebookUrl: "https://www.facebook.com/elhabashy.auctionappraisal/",
+  linkedinUrl: "",
+};
+
+export const initialSectors: Sector[] = [
+  {
+    id: "real-estate",
+    title: { ar: "العقارات", en: "Real Estate", fr: "Immobilier" },
+    description: {
+      ar: "أراضي، وحدات، فيلات، ومبان جاهزة للمعاينة والتواصل.",
+      en: "Land, units, villas, and buildings prepared for viewing and contact.",
+      fr: "Terrains, unites, villas et batiments prets pour visite et contact.",
+    },
+  },
+  {
+    id: "movables",
+    title: { ar: "العدد والمنقولات", en: "Movables", fr: "Biens mobiliers" },
+    description: {
+      ar: "معدات، مخزون، أجهزة، ومنقولات تشغيلية قابلة للفحص.",
+      en: "Equipment, inventory, devices, and operational movables ready for inspection.",
+      fr: "Equipements, stocks, appareils et biens mobiliers disponibles pour inspection.",
+    },
+  },
+  {
+    id: "cars",
+    title: { ar: "السيارات", en: "Cars", fr: "Voitures" },
+    description: {
+      ar: "سيارات ملاكي، نقل، وأساطيل شركات مع بيانات واضحة.",
+      en: "Passenger cars, transport vehicles, and company fleets with clear data.",
+      fr: "Voitures, vehicules de transport et flottes avec donnees claires.",
+    },
+  },
+  {
+    id: "antiques",
+    title: { ar: "التحف والأنتيكات", en: "Antiques", fr: "Antiquites" },
+    description: {
+      ar: "قطع فنية، ديكور، مقتنيات، ومجموعات كلاسيكية.",
+      en: "Art pieces, decor, collectibles, and classic collections.",
+      fr: "Objets d'art, decoration, collections et pieces classiques.",
+    },
+  },
+  {
+    id: "scrap",
+    title: { ar: "المخلفات والسكراب", en: "Scrap", fr: "Lots industriels" },
+    description: {
+      ar: "مخلفات تشغيل، خردة، وسكراب صناعي حسب الوزن والمعاينة.",
+      en: "Operational leftovers, scrap, and industrial lots by weight and inspection.",
+      fr: "Lots industriels, rebuts et ferraille selon poids et inspection.",
+    },
+  },
+  {
+    id: "other",
+    title: { ar: "أخرى", en: "Other", fr: "Autre" },
+    description: {
+      ar: "أي عروض أو أصول لا تدخل تحت القطاعات الأساسية.",
+      en: "Any listings or assets outside the main sectors.",
+      fr: "Toute offre ou actif hors des secteurs principaux.",
+    },
+  },
+];
+
+export const initialAboutContent: AboutContent = {
+  profile: {
+    ar: "بدأت نواة الشركة عام 1944 من مكتب شيخ الخبراء المثمنين سيد الحبشي، لتصبح شركة اتحاد الخبراء المثمنين واحدة من أقدم الجهات المتخصصة في الخبرة والتثمين والمزايدات في مصر. توسعت الخبرة لتشمل العقارات والمنقولات والسيارات والمخلفات والتحف والتحكيم وفض المنازعات.",
+    en: "The company started in 1944 from the office of valuation expert Sayed El Habashy, growing into one of Egypt's long-standing valuation and auction practices. Its expertise covers real estate, movable assets, cars, scrap, antiques, arbitration, and dispute resolution.",
+  },
+  workCategories: [
+    {
+      id: 1,
+      title: { ar: "البنوك", en: "Banks" },
+      items: [
+        { ar: "البنك الأهلي المصري", en: "National Bank of Egypt" },
+        { ar: "بنك مصر", en: "Banque Misr" },
+        { ar: "البنك التجاري الدولي CIB", en: "Commercial International Bank CIB" },
+        { ar: "بنك فيصل الإسلامي", en: "Faisal Islamic Bank" },
+      ],
+    },
+    {
+      id: 2,
+      title: { ar: "الوزارات والهيئات", en: "Ministries and Authorities" },
+      items: [
+        { ar: "وزارة الإسكان والمجتمعات العمرانية", en: "Ministry of Housing and Urban Communities" },
+        { ar: "الهيئة القومية للإنتاج الحربي", en: "National Organization for Military Production" },
+        { ar: "هيئة الأوقاف المصرية", en: "Egyptian Awqaf Authority" },
+        { ar: "هيئة قناة السويس", en: "Suez Canal Authority" },
+      ],
+    },
+    {
+      id: 3,
+      title: { ar: "الشركات والصناعات", en: "Companies and Industries" },
+      items: [
+        { ar: "النصر لصناعة السيارات", en: "El Nasr Automotive Manufacturing" },
+        { ar: "أبو قير للأسمدة والصناعات الكيماوية", en: "Abu Qir Fertilizers and Chemical Industries" },
+        { ar: "مصر للألومنيوم", en: "Egyptalum" },
+        { ar: "مجموعة شركات أوليمبيك جروب", en: "Olympic Group" },
+      ],
+    },
+    {
+      id: 4,
+      title: { ar: "المحافظات", en: "Governorates" },
+      items: [
+        { ar: "القاهرة", en: "Cairo" },
+        { ar: "الجيزة", en: "Giza" },
+        { ar: "الإسكندرية", en: "Alexandria" },
+        { ar: "السويس", en: "Suez" },
+      ],
+    },
+  ],
+  certificates: [
+    {
+      id: 1,
+      title: { ar: "شهادات تقدير وشراكات مهنية", en: "Recognition and Professional Partnerships" },
+      date: "2015",
+      description: {
+        ar: "مساحة مخصصة لعرض شهادات التقدير، البروتوكولات، وصور الاعتمادات عند توافرها من الإدارة.",
+        en: "A space for recognition certificates, protocols, and accreditation images when supplied by management.",
+      },
+    },
+  ],
+  structure: {
+    leaders: [
+      { ar: "سيد سيد الحبشي", en: "Sayed Sayed El Habashy" },
+      { ar: "سعيد سيد الحبشي", en: "Saied Sayed El Habashy" },
+      { ar: "محمد سيد الحبشي", en: "Mohamed Sayed El Habashy" },
+      { ar: "مصطفى سيد سيد الحبشي", en: "Mostafa Sayed Sayed El Habashy" },
+      { ar: "أحمد سعيد سيد الحبشي", en: "Ahmed Saied Sayed El Habashy" },
+    ],
+    departments: [
+      { ar: "العقارات", en: "Real estate" },
+      { ar: "العدد والمنقولات", en: "Movables and equipment" },
+      { ar: "المخلفات", en: "Scrap and leftovers" },
+      { ar: "التحف", en: "Antiques" },
+      { ar: "الشؤون القانونية", en: "Legal affairs" },
+      { ar: "العلاقات العامة", en: "Public relations" },
+      { ar: "التأمين والمخاطر", en: "Insurance and risk" },
+      { ar: "التمويل العقاري", en: "Mortgage finance" },
+    ],
+  },
+};
 
 export const initialListings: Listing[] = [
   {
@@ -13,8 +166,8 @@ export const initialListings: Listing[] = [
       en: "A premium residential asset with clear visuals and viewing-ready documentation.",
     },
     description: {
-      ar: "<h2>فرصة عقارية جاهزة للمعاينة</h2><p>فيلا مستقلة بموقع هادئ داخل التجمع الخامس، مناسبة لمن يبحث عن أصل واضح البيانات وسهل الفحص.</p><ul><li>صور داخلية وخارجية واضحة</li><li>موقع قريب من الخدمات الرئيسية</li><li>كراسة شروط متاحة عند الطلب</li></ul>",
-      en: "<h2>Viewing-ready real estate opportunity</h2><p>A standalone villa in a quiet New Cairo location, prepared for customers who need clear data and organized inspection materials.</p><ul><li>Clear interior and exterior photos</li><li>Near key services and access roads</li><li>Booklet available on request</li></ul>",
+      ar: "<h2>فرصة عقارية جاهزة للمعاينة</h2><p>فيلا مستقلة بموقع هادئ داخل التجمع الخامس، مناسبة لمن يبحث عن أصل واضح البيانات وسهل الفحص.</p><ul><li>صور داخلية وخارجية واضحة</li><li>موقع قريب من الخدمات الرئيسية</li><li>تواصل مباشر مع الفريق لترتيب المعاينة</li></ul>",
+      en: "<h2>Viewing-ready real estate opportunity</h2><p>A standalone villa in a quiet New Cairo location, prepared for customers who need clear data and organized inspection materials.</p><ul><li>Clear interior and exterior photos</li><li>Near key services and access roads</li><li>Direct team contact for viewing coordination</li></ul>",
     },
     category: "real-estate",
     status: "active",
@@ -35,8 +188,28 @@ export const initialListings: Listing[] = [
       { label: { ar: "الموقع", en: "Location" }, value: { ar: "التجمع الخامس", en: "Fifth Settlement" } },
     ],
     createdAt: "2026-05-20",
+    publishDate: "2026-06-11",
+    expireDate: "2026-06-29",
+    auctionDate: "2026-06-29",
+    auctionTime: "12:00",
+    beneficiary: {
+      ar: "لصالح كبرى شركات التمويل العقاري",
+      en: "For a major real estate finance company",
+    },
+    venue: {
+      ar: "أمام جنينه مول - مدينة نصر",
+      en: "In front of Genena Mall - Nasr City",
+    },
+    announcementSource: {
+      ar: "الأخبار",
+      en: "Al Akhbar",
+    },
+    notes: {
+      ar: "كافة التفاصيل والتأمين يتم تأكيدها من خلال فريق التواصل الرسمي.",
+      en: "Full details and deposits are confirmed through the official contact team.",
+    },
+    mapUrl: "https://maps.google.com/?q=Genena%20Mall%20Nasr%20City%20Cairo",
     views: 2840,
-    bookletRequests: 136,
     whatsappClicks: 88,
   },
   {
@@ -51,8 +224,8 @@ export const initialListings: Listing[] = [
       en: "Passenger and light transport fleet with condition notes and detailed photos.",
     },
     description: {
-      ar: "<h2>أسطول جاهز للفحص</h2><p>مجموعة سيارات تشغيلية مناسبة للشركات والتجار، مع إمكانية طلب القائمة التفصيلية وكراسة الشروط.</p><blockquote>المعاينة متاحة حسب الموعد.</blockquote>",
-      en: "<h2>Inspection-ready fleet</h2><p>A running company fleet suitable for traders and operators, with a detailed vehicle list available through the booklet request.</p><blockquote>Viewing by appointment.</blockquote>",
+      ar: "<h2>أسطول جاهز للفحص</h2><p>مجموعة سيارات تشغيلية مناسبة للشركات والتجار، مع إمكانية التواصل للحصول على القائمة التفصيلية.</p><blockquote>المعاينة متاحة حسب الموعد.</blockquote>",
+      en: "<h2>Inspection-ready fleet</h2><p>A running company fleet suitable for traders and operators, with a detailed vehicle list available through direct contact.</p><blockquote>Viewing by appointment.</blockquote>",
     },
     category: "cars",
     status: "active",
@@ -72,8 +245,27 @@ export const initialListings: Listing[] = [
       { label: { ar: "المعاينة", en: "Viewing" }, value: { ar: "بالحجز", en: "By appointment" } },
     ],
     createdAt: "2026-05-18",
+    publishDate: "2026-05-31",
+    expireDate: "2026-06-17",
+    auctionDate: "2026-06-17",
+    auctionTime: "12:00",
+    beneficiary: {
+      ar: "لصالح إحدى كبرى البنوك",
+      en: "For a major bank",
+    },
+    venue: {
+      ar: "مكان المعاينة يحدد بالتواصل",
+      en: "Viewing venue is confirmed by contact",
+    },
+    announcementSource: {
+      ar: "الأخبار",
+      en: "Al Akhbar",
+    },
+    notes: {
+      ar: "السيارات بحالة جيدة وموديلات حتى 2021.",
+      en: "Vehicles are in good condition, models up to 2021.",
+    },
     views: 1975,
-    bookletRequests: 94,
     whatsappClicks: 61,
   },
   {
@@ -110,7 +302,6 @@ export const initialListings: Listing[] = [
     ],
     createdAt: "2026-05-15",
     views: 1432,
-    bookletRequests: 52,
     whatsappClicks: 31,
   },
   {
@@ -147,7 +338,6 @@ export const initialListings: Listing[] = [
     ],
     createdAt: "2026-05-10",
     views: 1090,
-    bookletRequests: 38,
     whatsappClicks: 24,
   },
   {
@@ -183,37 +373,7 @@ export const initialListings: Listing[] = [
     ],
     createdAt: "2026-04-28",
     views: 722,
-    bookletRequests: 19,
     whatsappClicks: 10,
-  },
-];
-
-export const initialRequests: BookletRequest[] = [
-  {
-    id: 1,
-    listingId: 1,
-    fullName: "Mona Adel",
-    whatsapp: "+201099911122",
-    email: "mona@example.com",
-    customerType: "individual",
-    notes: "Need the booklet and viewing schedule.",
-    files: [],
-    status: "NEW",
-    internalNotes: "",
-    createdAt: "2026-05-28",
-  },
-  {
-    id: 2,
-    listingId: 2,
-    fullName: "Delta Trading",
-    whatsapp: "+201144455566",
-    email: "info@delta.example",
-    customerType: "company",
-    notes: "Please send fleet details.",
-    files: [],
-    status: "CONTACTED",
-    internalNotes: "Asked for commercial registration.",
-    createdAt: "2026-05-27",
   },
 ];
 

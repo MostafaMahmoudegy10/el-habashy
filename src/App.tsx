@@ -9,6 +9,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { ListingsPage } from "./pages/ListingsPage";
+import { ServiceDetailsPage, ServicesPage } from "./pages/ServicesPage";
 
 function AppShell() {
   const { page } = useApp();
@@ -25,6 +26,8 @@ function AppShell() {
         {page === "about" && <AboutPage />}
         {page === "listings" && <ListingsPage />}
         {page === "details" && <ListingDetailsPage />}
+        {page === "services" && <ServicesPage />}
+        {page === "service-details" && <ServiceDetailsPage />}
         {page === "login" && <AuthPage mode="login" />}
         {page === "register" && <AuthPage mode="register" />}
         {page === "dashboard" && <DashboardPage />}

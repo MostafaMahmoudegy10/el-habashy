@@ -104,8 +104,10 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
 
           <p className="text-center text-xs font-bold text-slate-500">
             {lang === "ar"
-              ? "واجهة تجريبية جاهزة للربط بنظام حسابات حقيقي."
-              : "Demo auth interface ready for real account integration."}
+              ? "احفظ عروضك المفضلة وتابع التحديثات المناسبة لك."
+              : lang === "fr"
+                ? "Enregistrez vos offres favorites et suivez les mises a jour utiles."
+                : "Save favorite listings and follow the updates that matter to you."}
           </p>
         </form>
       </div>

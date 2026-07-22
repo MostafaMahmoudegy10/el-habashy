@@ -1,6 +1,8 @@
-import { FiArrowUpRight, FiBookmark, FiEye, FiFileText, FiHeart, FiMapPin } from "react-icons/fi";
-import { categoryLabel, statusLabel } from "../lib/i18n";
+import type { IconType } from "react-icons";
+import { FiArrowUpRight, FiBookmark, FiEye, FiHeart, FiMapPin, FiMessageCircle } from "react-icons/fi";
+import { statusLabel } from "../lib/i18n";
 import { categoryIcon } from "../lib/icons";
+import { getSectorTitle } from "../lib/sectors";
 import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
 import { LazyImage } from "./LazyImage";
@@ -8,7 +10,7 @@ import { WhatsAppButton } from "./WhatsAppButton";
 import type { Listing } from "../types";
 
 export function ListingCard({ listing, elevated = false }: { listing: Listing; elevated?: boolean }) {
-  const { lang, t, currentUser, selectListing, toggleFavorite } = useApp();
+  const { lang, t, sectors, currentUser, selectListing, toggleFavorite } = useApp();
   const CategoryIcon = categoryIcon[listing.category];
   const favorite = Boolean(currentUser?.favorites.includes(listing.id));
 
@@ -27,7 +29,7 @@ export function ListingCard({ listing, elevated = false }: { listing: Listing; e
         <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-950 shadow-sm backdrop-blur">
             <CategoryIcon className="text-amber-600" />
-            {categoryLabel[listing.category][lang]}
+            {getSectorTitle(sectors, listing.category, lang)}
           </span>
           <button
             type="button"
@@ -69,7 +71,7 @@ export function ListingCard({ listing, elevated = false }: { listing: Listing; e
 
         <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
           <MiniStat icon={FiEye} value={listing.views} />
-          <MiniStat icon={FiFileText} value={listing.bookletRequests} />
+          <MiniStat icon={FiMessageCircle} value={listing.whatsappClicks} />
           <MiniStat icon={FiBookmark} value={listing.measureLabel} text />
         </div>
 
@@ -94,7 +96,7 @@ function MiniStat({
   value,
   text,
 }: {
-  icon: typeof FiEye;
+  icon: IconType;
   value: number | string;
   text?: boolean;
 }) {

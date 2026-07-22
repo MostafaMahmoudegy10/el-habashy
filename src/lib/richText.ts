@@ -56,8 +56,8 @@ function cleanElement(element: Element) {
   });
 }
 
-export function sanitizeRichText(value: string) {
-  const trimmed = value.trim();
+export function sanitizeRichText(value?: string | null) {
+  const trimmed = (value ?? "").trim();
   if (!trimmed) return "";
 
   if (typeof DOMParser === "undefined" || typeof document === "undefined") {
@@ -69,13 +69,14 @@ export function sanitizeRichText(value: string) {
   return parsed.body.innerHTML;
 }
 
-export function stripRichText(value: string) {
-  if (!value.trim()) return "";
+export function stripRichText(value?: string | null) {
+  const safeValue = value ?? "";
+  if (!safeValue.trim()) return "";
 
   if (typeof DOMParser !== "undefined") {
-    const parsed = new DOMParser().parseFromString(value, "text/html");
+    const parsed = new DOMParser().parseFromString(safeValue, "text/html");
     return (parsed.body.textContent ?? "").replace(/\s+/g, " ").trim();
   }
 
-  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return safeValue.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }

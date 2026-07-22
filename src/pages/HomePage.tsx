@@ -10,9 +10,9 @@ import {
   FiChevronRight,
   FiClock,
   FiExternalLink,
-  FiFileText,
   FiMail,
   FiMapPin,
+  FiMessageCircle,
   FiMousePointer,
   FiPhone,
   FiSearch,
@@ -20,25 +20,25 @@ import {
   FiStar,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa6";
-import { categoryLabel } from "../lib/i18n";
 import { categoryIcon } from "../lib/icons";
+import { getSectorTitle } from "../lib/sectors";
 import { useApp } from "../context/AppContext";
 import { ListingCard } from "../components/ListingCard";
 import { LazyImage } from "../components/LazyImage";
 import { SectionHeading } from "../components/SectionHeading";
 import heroBackground from "../assets/elhabashy-hero-bg.png";
-import type { Listing, ListingCategory } from "../types";
+import type { Listing } from "../types";
 
 export function HomePage() {
-  const { lang, t, listings, navigate, selectListing } = useApp();
+  const { lang, t, listings, sectors, services, navigate, navigateListings, selectListing, selectService } = useApp();
   const [slide, setSlide] = useState(0);
   const featured = listings.filter((listing) => listing.featured);
   const latest = useMemo(
     () => [...listings].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5),
     [listings],
   );
-  const requested = useMemo(
-    () => [...listings].sort((a, b) => b.bookletRequests - a.bookletRequests).slice(0, 5),
+  const contacted = useMemo(
+    () => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks).slice(0, 5),
     [listings],
   );
   const slides = featured.length ? featured : latest;
@@ -75,7 +75,7 @@ export function HomePage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => navigate("listings")}
+                onClick={() => navigateListings("all")}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 py-3 text-sm font-black text-slate-950 shadow-2xl shadow-amber-950/20 transition duration-300 hover:-translate-y-1 hover:bg-amber-300"
               >
                 {t.browseListings}
@@ -86,15 +86,15 @@ export function HomePage() {
                 onClick={() => active && selectListing(active.id)}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm font-black text-white shadow-lg shadow-black/10 backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-amber-300 hover:bg-white/15"
               >
-                {t.requestBooklet}
-                <FiFileText />
+                {t.viewDetails}
+                <FiExternalLink />
               </button>
             </div>
 
             <div className="mt-10 grid grid-cols-3 gap-3">
               <HeroMetric value={listings.length} label={t.totalListings} />
               <HeroMetric value={listings.filter((listing) => listing.status === "active").length} label={t.activeListings} />
-              <HeroMetric value={listings.reduce((sum, listing) => sum + listing.bookletRequests, 0)} label={t.bookletRequests} />
+              <HeroMetric value={listings.reduce((sum, listing) => sum + listing.whatsappClicks, 0)} label={t.whatsappClicks} />
             </div>
           </div>
 
@@ -110,7 +110,7 @@ export function HomePage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-5 text-white md:p-7">
                   <span className="rounded-full bg-amber-400 px-3 py-1 text-xs font-black text-slate-950">
-                    {categoryLabel[active.category][lang]}
+                    {getSectorTitle(sectors, active.category, lang)}
                   </span>
                   <h2 className="mt-4 line-clamp-2 text-2xl font-black leading-tight md:text-4xl">
                     {active.title[lang]}
@@ -149,37 +149,50 @@ export function HomePage() {
 
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
         <div className="grid gap-4 md:grid-cols-4">
-          {(Object.keys(categoryLabel) as ListingCategory[]).map((category) => {
-            const Icon = categoryIcon[category];
+          {sectors.map((sector) => {
+            const Icon = categoryIcon[sector.id];
             return (
               <button
-                key={category}
+                key={sector.id}
                 type="button"
-                onClick={() => navigate("listings")}
+                onClick={() => navigateListings(sector.id)}
                 className="group rounded-3xl border border-slate-200 bg-white p-5 text-start shadow-sm transition duration-300 hover:-translate-y-1 hover:border-amber-300 hover:shadow-xl hover:shadow-slate-950/10"
               >
                 <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-950 text-amber-300 transition duration-300 group-hover:scale-105">
                   <Icon size={22} />
                 </span>
-                <strong className="mt-4 block text-lg font-black text-slate-950">{categoryLabel[category][lang]}</strong>
+                <strong className="mt-4 block text-lg font-black text-slate-950">{sector.title[lang]}</strong>
+                <small className="mt-2 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{sector.description[lang]}</small>
               </button>
             );
           })}
         </div>
       </section>
 
+      <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+        <SectionHeading eyebrow={lang === "ar" ? "ما نقدمه" : "What we do"} title={lang === "ar" ? "الخدمات" : "Our services"} subtitle={lang === "ar" ? "خبرات متكاملة في التحكيم والتقييم والاستشارات ودراسات الجدوى." : "Integrated arbitration, valuation, consulting and feasibility expertise."} />
+        <div className="grid gap-5 md:grid-cols-3">{services.filter((item) => item.featured).slice(0, 3).map((service) => <button key={service.id} type="button" onClick={() => selectService(service.id)} className="group overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-start shadow-xl shadow-slate-950/5 transition hover:-translate-y-1 hover:border-amber-300"><LazyImage src={service.image} alt="" className="aspect-[1.6] w-full object-cover transition duration-500 group-hover:scale-105"/><span className="block p-5"><small className="font-black text-amber-700">{service.kind === "arbitration" ? (lang === "ar" ? "قطاعات التحكيم" : "Arbitration") : service.kind === "valuation" ? (lang === "ar" ? "التقييمات" : "Valuation") : (lang === "ar" ? "الاستشارات" : "Consulting")}</small><strong className="mt-2 block text-xl font-black text-slate-950">{service.title[lang]}</strong><span className="mt-3 line-clamp-2 text-sm font-semibold leading-7 text-slate-600">{service.summary[lang]}</span></span></button>)}</div>
+        <button type="button" onClick={() => navigate("services")} className="mt-6 inline-flex min-h-12 items-center rounded-full bg-slate-950 px-6 text-sm font-black text-white">{lang === "ar" ? "عرض كل الخدمات" : "View all services"}</button>
+      </section>
+
       <section className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
         <SectionHeading
           eyebrow={t.featuredListings}
-          title={lang === "ar" ? "أصول مختارة بعناية" : "Carefully selected assets"}
-          subtitle={lang === "ar" ? "صور واضحة، بيانات مختصرة، وخطوة مباشرة لطلب كراسة الشروط." : "Clear photos, focused data, and one direct step to request the booklet."}
+          title={lang === "ar" ? "أصول مختارة بعناية" : lang === "fr" ? "Actifs selectionnes avec soin" : "Carefully selected assets"}
+          subtitle={
+            lang === "ar"
+              ? "صور واضحة، بيانات مختصرة، وخطوة مباشرة للتواصل مع الفريق."
+              : lang === "fr"
+                ? "Photos claires, donnees utiles et contact direct avec l'equipe."
+                : "Clear photos, focused data, and one direct step to contact the team."
+          }
         />
         <FeaturedListingsRail listings={featured.length ? featured : latest} />
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-10 lg:px-6">
         <LatestAdditionsPanel listings={latest} />
-        <MostRequestedBoard listings={requested} />
+        <MostContactedBoard listings={contacted} />
       </section>
 
       <section className="border-y border-slate-200 bg-slate-950 text-white">
@@ -194,8 +207,8 @@ export function HomePage() {
             {[
               { icon: FiSearch, text: lang === "ar" ? "تصفح العروض" : "Browse listings" },
               { icon: FiMousePointer, text: lang === "ar" ? "شاهد التفاصيل" : "View details" },
-              { icon: FiFileText, text: lang === "ar" ? "اطلب الكراسة" : "Request booklet" },
-              { icon: FaWhatsapp, text: lang === "ar" ? "تواصل واتساب" : "Contact on WhatsApp" },
+              { icon: FiMapPin, text: lang === "ar" ? "راجع المكان" : lang === "fr" ? "Verifier le lieu" : "Check location" },
+              { icon: FaWhatsapp, text: lang === "ar" ? "تواصل واتساب" : lang === "fr" ? "Contacter sur WhatsApp" : "Contact on WhatsApp" },
             ].map((item, index) => {
               const Icon = item.icon;
               return (
@@ -304,7 +317,7 @@ function FeaturedListingsRail({ listings }: { listings: Listing[] }) {
 }
 
 function LatestAdditionsPanel({ listings }: { listings: Listing[] }) {
-  const { lang, selectListing, t } = useApp();
+  const { lang, sectors, selectListing, t } = useApp();
   const [active, setActive] = useState(0);
   const current = listings[active % listings.length];
 
@@ -329,7 +342,7 @@ function LatestAdditionsPanel({ listings }: { listings: Listing[] }) {
             <h2 className="mt-4 max-w-xl text-3xl font-black leading-tight md:text-4xl">{current.title[lang]}</h2>
             <p className="mt-3 line-clamp-2 max-w-xl text-sm font-semibold leading-7 text-slate-200">{current.summary[lang]}</p>
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-black">
-              <span className="rounded-full bg-amber-400 px-3 py-1 text-slate-950">{categoryLabel[current.category][lang]}</span>
+              <span className="rounded-full bg-amber-400 px-3 py-1 text-slate-950">{getSectorTitle(sectors, current.category, lang)}</span>
               <span className="rounded-full bg-white/15 px-3 py-1 text-white backdrop-blur">{current.createdAt}</span>
             </div>
           </div>
@@ -390,10 +403,10 @@ function LatestAdditionsPanel({ listings }: { listings: Listing[] }) {
   );
 }
 
-function MostRequestedBoard({ listings }: { listings: Listing[] }) {
-  const { lang, selectListing, t } = useApp();
+function MostContactedBoard({ listings }: { listings: Listing[] }) {
+  const { lang, sectors, selectListing, t } = useApp();
   const topListing = listings[0];
-  const maxRequests = Math.max(1, ...listings.map((listing) => listing.bookletRequests));
+  const maxContacts = Math.max(1, ...listings.map((listing) => listing.whatsappClicks));
 
   if (!topListing) return null;
 
@@ -402,12 +415,14 @@ function MostRequestedBoard({ listings }: { listings: Listing[] }) {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(245,158,11,0.22),transparent_28%),radial-gradient(circle_at_80%_72%,rgba(16,185,129,0.14),transparent_24%)]" />
       <div className="relative">
         <SectionHeading
-          eyebrow={t.mostRequested}
-          title={lang === "ar" ? "العروض الأكثر طلبًا من العملاء" : "Most requested by customers"}
+          eyebrow={t.mostContacted}
+          title={lang === "ar" ? "العروض الأكثر تواصلا من العملاء" : lang === "fr" ? "Les offres les plus contactees" : "Most contacted by customers"}
           subtitle={
             lang === "ar"
-              ? "هنا العرض مش Carousel عادي، ده ترتيب واضح يبين أي أصول عليها طلب أعلى ويشجع العميل يتحرك بسرعة."
-              : "A ranked board that makes demand obvious and helps customers move faster."
+              ? "ترتيب واضح يبين أي أصول عليها تواصل أعلى ويشجع العميل يتحرك بسرعة."
+              : lang === "fr"
+                ? "Un classement clair qui montre les offres avec le plus de contacts."
+                : "A ranked board that makes customer contact obvious and helps customers move faster."
           }
           inverted
         />
@@ -415,7 +430,7 @@ function MostRequestedBoard({ listings }: { listings: Listing[] }) {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
           <div className="grid gap-3">
             {listings.map((listing, index) => {
-              const percent = Math.round((listing.bookletRequests / maxRequests) * 100);
+              const percent = Math.round((listing.whatsappClicks / maxContacts) * 100);
               return (
                 <button
                   key={listing.id}
@@ -433,14 +448,14 @@ function MostRequestedBoard({ listings }: { listings: Listing[] }) {
                         <FiMapPin className="text-amber-300" />
                         {listing.city[lang]}
                         <span className="h-1 w-1 rounded-full bg-slate-500" />
-                        {categoryLabel[listing.category][lang]}
+                        {getSectorTitle(sectors, listing.category, lang)}
                       </small>
                     </span>
                     <span className="rounded-2xl bg-white/10 px-4 py-3 text-center">
                       <strong className="block text-2xl font-black text-white">
-                        {listing.bookletRequests.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}
+                        {listing.whatsappClicks.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}
                       </strong>
-                      <small className="text-xs font-black text-slate-300">{t.bookletRequests}</small>
+                      <small className="text-xs font-black text-slate-300">{t.whatsappClicks}</small>
                     </span>
                   </div>
                   <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
@@ -462,7 +477,7 @@ function MostRequestedBoard({ listings }: { listings: Listing[] }) {
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <span className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-1 text-xs font-black text-slate-950">
                   <FiStar />
-                  {lang === "ar" ? "الأعلى طلبًا" : "Top requested"}
+                  {lang === "ar" ? "الأعلى تواصلا" : lang === "fr" ? "Le plus contacte" : "Top contacted"}
                 </span>
                 <h3 className="mt-4 line-clamp-2 text-2xl font-black leading-tight text-white">{topListing.title[lang]}</h3>
               </div>
@@ -488,25 +503,25 @@ function TopRequestedStat({ value, label }: { value: string; label: string }) {
 }
 
 function HomeAboutPreview() {
-  const { lang, t, navigate } = useApp();
+  const { lang, t, sectors, navigate } = useApp();
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
 
   const stats = [
-    { value: "15+", label: lang === "ar" ? "سنة خبرة" : "Years of experience" },
-    { value: "120+", label: lang === "ar" ? "مزايدة وأصل منظم" : "Organized assets" },
-    { value: "9", label: lang === "ar" ? "قطاعات أصول" : "Asset sectors" },
+    { value: "15+", label: lang === "ar" ? "سنة خبرة" : lang === "fr" ? "Annees d'experience" : "Years of experience" },
+    { value: "120+", label: lang === "ar" ? "مزايدة وأصل منظم" : lang === "fr" ? "Actifs organises" : "Organized assets" },
+    { value: sectors.length, label: lang === "ar" ? "قطاعات أصول" : lang === "fr" ? "Secteurs d'actifs" : "Asset sectors" },
   ];
 
   const strengths = [
     {
       icon: FiShield,
-      title: lang === "ar" ? "شفافية في العرض" : "Transparent showcase",
-      text: lang === "ar" ? "صور، حالة، موقع، وبيانات مختصرة قبل أي تواصل." : "Photos, status, location, and clear data before contact.",
+      title: lang === "ar" ? "شفافية في العرض" : lang === "fr" ? "Presentation transparente" : "Transparent showcase",
+      text: lang === "ar" ? "صور، حالة، موقع، وبيانات مختصرة قبل أي تواصل." : lang === "fr" ? "Photos, statut, lieu et donnees claires avant le contact." : "Photos, status, location, and clear data before contact.",
     },
     {
       icon: FiBriefcase,
-      title: lang === "ar" ? "تنظيم ملفات الطلب" : "Organized requests",
-      text: lang === "ar" ? "طلبات كراسة الشروط محفوظة بحالة وملاحظات وملفات." : "Booklet requests are tracked with status, notes, and files.",
+      title: lang === "ar" ? "متابعة منظمة" : lang === "fr" ? "Suivi organise" : "Organized follow-up",
+      text: lang === "ar" ? "كل مزاد له بيانات تواصل وواتساب وموقع واضح لتسهيل المتابعة." : lang === "fr" ? "Chaque offre garde ses donnees de contact, WhatsApp et localisation." : "Each listing keeps clear contact, WhatsApp, and location data for follow-up.",
     },
   ];
 
@@ -524,12 +539,14 @@ function HomeAboutPreview() {
           <div className="absolute inset-x-0 bottom-0 p-6 text-white">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-amber-200 backdrop-blur">
               <FiMapPin />
-              {lang === "ar" ? "القاهرة، مصر" : "Cairo, Egypt"}
+              {lang === "ar" ? "القاهرة، مصر" : lang === "fr" ? "Le Caire, Egypte" : "Cairo, Egypt"}
             </span>
             <p className="mt-4 max-w-md text-sm font-semibold leading-7 text-slate-200">
               {lang === "ar"
                 ? "مقر إداري للتواصل، مراجعة المستندات، وترتيب المعاينات مع العملاء والجهات المالكة للأصول."
-                : "A contact hub for documents, inspections, and organized asset follow-up."}
+                : lang === "fr"
+                  ? "Un point de contact pour les documents, les visites et le suivi des actifs."
+                  : "A contact hub for documents, inspections, and organized asset follow-up."}
             </p>
           </div>
         </div>
@@ -537,12 +554,18 @@ function HomeAboutPreview() {
         <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-col justify-center p-2 lg:p-6">
           <span className="text-xs font-black uppercase text-emerald-700">{t.about}</span>
           <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
-            {lang === "ar" ? "الحبشي مش مجرد عرض أصول، ده خبرة مزايدات وتقييم وتنظيم مستندات." : "El Habashy is valuation, auction experience, and organized documentation."}
+            {lang === "ar"
+              ? "الحبشي مش مجرد عرض أصول، ده خبرة مزايدات وتقييم وتنظيم مستندات."
+              : lang === "fr"
+                ? "El Habashy combine evaluation, enchere et organisation des donnees."
+                : "El Habashy is valuation, auction experience, and organized documentation."}
           </h2>
           <p className="mt-5 text-sm font-semibold leading-8 text-slate-600 md:text-base">
             {lang === "ar"
-              ? "نجهز تجربة عرض محترمة للأصول: عقارات، سيارات، أنتيكات، وسكراب. الهدف إن العميل يفهم العرض بسرعة، يطلب كراسة الشروط بسهولة، ويتواصل مع الفريق بخطوات واضحة."
-              : "We prepare a premium asset showcase across real estate, cars, antiques, and scrap so customers understand listings quickly and request booklets easily."}
+              ? "نجهز تجربة عرض محترمة للأصول: عقارات، سيارات، أنتيكات، وسكراب. الهدف إن العميل يفهم العرض بسرعة ويتواصل مع الفريق بخطوات واضحة."
+              : lang === "fr"
+                ? "Nous preparons une vitrine claire pour l'immobilier, les voitures, les antiquites et les lots industriels afin que le client comprenne vite et contacte l'equipe facilement."
+                : "We prepare a premium asset showcase across real estate, cars, antiques, and scrap so customers understand listings quickly and contact the team easily."}
           </p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
@@ -572,7 +595,7 @@ function HomeAboutPreview() {
             onClick={() => navigate("about")}
             className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-1 hover:bg-slate-800"
           >
-            {lang === "ar" ? "رؤية المزيد عن الحبشي" : "Read more about El Habashy"}
+            {lang === "ar" ? "رؤية المزيد عن الحبشي" : lang === "fr" ? "En savoir plus sur El Habashy" : "Read more about El Habashy"}
             <ArrowIcon />
           </button>
         </div>
@@ -582,14 +605,14 @@ function HomeAboutPreview() {
 }
 
 function ContactExperience() {
-  const { lang, t, navigate } = useApp();
+  const { lang, t, settings, navigate, navigateListings } = useApp();
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
 
   const contactCards = [
-    { icon: FiPhone, label: lang === "ar" ? "اتصال مباشر" : "Direct phone", value: "+20 100 000 0000" },
-    { icon: FaWhatsapp, label: t.whatsapp, value: "+20 100 000 0000" },
-    { icon: FiMail, label: t.email, value: "info@elhabashy.example" },
-    { icon: FiMapPin, label: lang === "ar" ? "مقر الشركة" : "Office location", value: lang === "ar" ? "القاهرة، مصر" : "Cairo, Egypt" },
+    { icon: FiPhone, label: lang === "ar" ? "اتصال مباشر" : lang === "fr" ? "Telephone direct" : "Direct phone", value: settings.contactPhone },
+    { icon: FaWhatsapp, label: t.whatsapp, value: settings.whatsappNumber, href: `https://wa.me/${settings.whatsappNumber.replace(/[^\d]/g, "")}` },
+    { icon: FiMail, label: t.email, value: settings.contactEmail, href: `mailto:${settings.contactEmail}` },
+    { icon: FiMapPin, label: lang === "ar" ? "مقر الشركة" : lang === "fr" ? "Bureau" : "Office location", value: settings.officeAddress[lang], href: settings.mapUrl },
   ];
 
   return (
@@ -600,21 +623,23 @@ function ContactExperience() {
           <div>
             <span className="text-xs font-black uppercase text-amber-300">{t.contact}</span>
             <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
-              {lang === "ar" ? "تواصل واضح بدل سكشن كونتاكت تقليدي." : "A clearer contact experience, not a generic block."}
+              {lang === "ar" ? "تواصل واضح مع فريق الحبشي." : lang === "fr" ? "Une experience de contact claire et directe." : "Clear contact with the El Habashy team."}
             </h2>
             <p className="mt-5 text-sm font-semibold leading-8 text-slate-300">
               {lang === "ar"
-                ? "اطلب كراسة الشروط من صفحة العرض، أو تواصل مع الفريق لمعرفة المستندات المطلوبة، مواعيد المعاينة، وخطوات استلام البيانات."
-                : "Request the booklet from the listing page, or contact the team for documents, viewing dates, and next steps."}
+                ? "افتح تفاصيل العرض أو تواصل مع الفريق لمعرفة المستندات المطلوبة، مواعيد المعاينة، وخطوات استلام البيانات."
+                : lang === "fr"
+                  ? "Ouvrez les details de l'offre ou contactez l'equipe pour les documents, les visites et les prochaines etapes."
+                  : "Open the listing details or contact the team for documents, viewing dates, and next steps."}
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => navigate("listings")}
+                onClick={() => navigateListings("all")}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 transition hover:-translate-y-1 hover:bg-amber-300"
               >
-                {t.requestBooklet}
-                <FiFileText />
+                {t.browseListings}
+                <FiSearch />
               </button>
               <button
                 type="button"
@@ -630,14 +655,15 @@ function ContactExperience() {
           <div className="grid gap-3 sm:grid-cols-2">
             {contactCards.map((item) => {
               const Icon = item.icon;
+              const Wrapper = item.href ? "a" : "article";
               return (
-                <article key={item.label} className="group rounded-3xl border border-white/10 bg-white/[0.07] p-5 shadow-lg shadow-black/10 backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-amber-300/60">
+                <Wrapper key={item.label} href={item.href} target={item.href ? "_blank" : undefined} rel={item.href ? "noreferrer" : undefined} className="group rounded-3xl border border-white/10 bg-white/[0.07] p-5 shadow-lg shadow-black/10 backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-amber-300/60">
                   <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-slate-950">
                     <Icon />
                   </span>
                   <small className="mt-5 block text-xs font-black text-amber-200">{item.label}</small>
                   <strong className="mt-1 block break-words text-lg font-black text-white">{item.value}</strong>
-                </article>
+                </Wrapper>
               );
             })}
           </div>
