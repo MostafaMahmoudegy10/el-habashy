@@ -1,4 +1,4 @@
-import type { AboutContent, AppSettings, Listing, Sector, Subscriber, User } from "../types";
+import type { AboutContent, AppSettings, Listing, Sector, Subscriber } from "../types";
 
 export const initialSettings: AppSettings = {
   whatsappNumber: "201000000000",
@@ -14,7 +14,7 @@ export const initialSettings: AppSettings = {
   },
   mapUrl: "https://maps.google.com/?q=22%20Mahmoud%20Bassiouny%20St%20Kasr%20El%20Nil%20Cairo",
   facebookUrl: "https://www.facebook.com/elhabashy.auctionappraisal/",
-  linkedinUrl: "",
+  linkedinUrl: "https://www.linkedin.com/company/elhabashy/",
 };
 
 export const initialSectors: Sector[] = [
@@ -75,6 +75,7 @@ export const initialSectors: Sector[] = [
 ];
 
 export const initialAboutContent: AboutContent = {
+  profileImage: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=85",
   profile: {
     ar: "بدأت نواة الشركة عام 1944 من مكتب شيخ الخبراء المثمنين سيد الحبشي، لتصبح شركة اتحاد الخبراء المثمنين واحدة من أقدم الجهات المتخصصة في الخبرة والتثمين والمزايدات في مصر. توسعت الخبرة لتشمل العقارات والمنقولات والسيارات والمخلفات والتحف والتحكيم وفض المنازعات.",
     en: "The company started in 1944 from the office of valuation expert Sayed El Habashy, growing into one of Egypt's long-standing valuation and auction practices. Its expertise covers real estate, movable assets, cars, scrap, antiques, arbitration, and dispute resolution.",
@@ -124,15 +125,32 @@ export const initialAboutContent: AboutContent = {
   certificates: [
     {
       id: 1,
-      title: { ar: "شهادات تقدير وشراكات مهنية", en: "Recognition and Professional Partnerships" },
+      title: { ar: "تقدير التعاون والخبرة المهنية", en: "Professional Expertise Recognition", fr: "Reconnaissance de l'expertise professionnelle" },
       date: "2015",
       description: {
-        ar: "مساحة مخصصة لعرض شهادات التقدير، البروتوكولات، وصور الاعتمادات عند توافرها من الإدارة.",
-        en: "A space for recognition certificates, protocols, and accreditation images when supplied by management.",
+        ar: "تقدير لمسيرة مهنية ممتدة في أعمال الخبرة والتثمين وإدارة المزادات وخدمة المؤسسات والجهات المختلفة.",
+        en: "Recognition of a long professional track record in valuation, auctions and institutional services.",
+        fr: "Reconnaissance d'une longue expérience dans l'évaluation et les ventes aux enchères.",
       },
+      image: "https://images.unsplash.com/photo-1589330694653-ded6df03f754?auto=format&fit=crop&w=1200&q=85",
+    },
+    {
+      id: 2,
+      title: { ar: "شهادة تقدير للأداء المؤسسي", en: "Institutional Performance Recognition", fr: "Reconnaissance de la performance institutionnelle" },
+      date: "2018",
+      description: { ar: "تقدير للالتزام بالمعايير المهنية والدقة في إعداد تقارير التقييم والخبرة الفنية.", en: "Recognition for professional standards and accuracy in technical valuation reports.", fr: "Reconnaissance du respect des normes professionnelles." },
+      image: "https://images.unsplash.com/photo-1565688527174-775059ac429c?auto=format&fit=crop&w=1200&q=85",
+    },
+    {
+      id: 3,
+      title: { ar: "تكريم سنوات الخبرة والعطاء", en: "Years of Experience Recognition", fr: "Reconnaissance des années d'expérience" },
+      date: "2022",
+      description: { ar: "تكريم للخبرة المتراكمة والمساهمة في تطوير خدمات التثمين والتحكيم والاستشارات.", en: "Recognition of accumulated expertise in valuation, arbitration and consulting.", fr: "Hommage à l'expérience en évaluation, arbitrage et conseil." },
+      image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
     },
   ],
   structure: {
+    image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=85",
     leaders: [
       { ar: "سيد سيد الحبشي", en: "Sayed Sayed El Habashy" },
       { ar: "سعيد سيد الحبشي", en: "Saied Sayed El Habashy" },
@@ -301,6 +319,12 @@ export const initialListings: Listing[] = [
       { label: { ar: "البيع", en: "Pricing" }, value: { ar: "حسب القطعة", en: "Per item" } },
     ],
     createdAt: "2026-05-15",
+    publishDate: "2026-07-25", expireDate: "2026-08-15", auctionDate: "2026-08-15", auctionTime: "13:00",
+    beneficiary: { ar: "لصالح مجموعة مقتنيات خاصة", en: "For a private collection" },
+    venue: { ar: "قاعة المعاينات - محطة الرمل", en: "Viewing hall - Raml Station" },
+    announcementSource: { ar: "الأهرام", en: "Al Ahram" },
+    notes: { ar: "المعاينة متاحة بالحجز المسبق مع كتالوج تفصيلي للقطع.", en: "Viewing is available by appointment with a detailed catalogue." },
+    mapUrl: "https://maps.google.com/?q=Raml%20Station%20Alexandria",
     views: 1432,
     whatsappClicks: 31,
   },
@@ -337,6 +361,12 @@ export const initialListings: Listing[] = [
       { label: { ar: "التسعير", en: "Pricing" }, value: { ar: "بالوزن", en: "By weight" } },
     ],
     createdAt: "2026-05-10",
+    publishDate: "2026-07-20", expireDate: "2026-08-10", auctionDate: "2026-08-10", auctionTime: "11:00",
+    beneficiary: { ar: "لصالح إحدى الشركات الصناعية", en: "For an industrial company" },
+    venue: { ar: "المنطقة الصناعية - العاشر من رمضان", en: "Industrial Zone - 10th of Ramadan" },
+    announcementSource: { ar: "الجمهورية", en: "Al Gomhuria" },
+    notes: { ar: "البيع طبقًا للوزن الفعلي بعد المعاينة والميزان المعتمد.", en: "Sale is based on verified weight after inspection." },
+    mapUrl: "https://maps.google.com/?q=10th%20of%20Ramadan%20Industrial%20Zone",
     views: 1090,
     whatsappClicks: 24,
   },
@@ -372,6 +402,12 @@ export const initialListings: Listing[] = [
       { label: { ar: "الحالة", en: "Status" }, value: { ar: "مغلق", en: "Closed" } },
     ],
     createdAt: "2026-04-28",
+    publishDate: "2026-04-28", expireDate: "2026-05-20", auctionDate: "2026-05-20", auctionTime: "12:00",
+    beneficiary: { ar: "لصالح إحدى شركات الاستثمار العقاري", en: "For a real-estate investment company" },
+    venue: { ar: "مدينة السادس من أكتوبر", en: "6th of October City" },
+    announcementSource: { ar: "الأخبار", en: "Al Akhbar" },
+    notes: { ar: "تم إغلاق العرض ويظل ظاهرًا كسابقة أعمال موثقة.", en: "The listing is closed and remains visible as an archived record." },
+    mapUrl: "https://maps.google.com/?q=Northern%20Expansions%206th%20October",
     views: 722,
     whatsappClicks: 10,
   },
@@ -398,7 +434,3 @@ export const initialSubscribers: Subscriber[] = [
   },
 ];
 
-export const initialUsers: User[] = [
-  { id: 1, name: "El Habashy Admin", email: "admin@elhabashy.com", role: "admin", favorites: [] },
-  { id: 2, name: "Mona Adel", email: "mona@example.com", role: "customer", favorites: [1, 2] },
-];

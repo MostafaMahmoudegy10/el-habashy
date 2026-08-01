@@ -6,8 +6,8 @@ export function Brand({ compact = false, inverted = false }: { compact?: boolean
 
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="grid h-12 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-lg shadow-amber-900/10">
-        <img src={brandLogo} alt={t.brand} className="h-full w-full object-contain p-1.5" />
+      <span className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-lg shadow-amber-900/10">
+        <img src={brandLogo} alt={t.brand} className="h-full w-full object-contain p-1" />
       </span>
       {!compact ? (
         <span className="min-w-0">

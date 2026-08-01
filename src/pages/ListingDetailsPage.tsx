@@ -12,7 +12,7 @@ import { useApp } from "../context/AppContext";
 export function ListingDetailsPage() {
   const { lang, t, listings, sectors, selectedListing, settings, currentUser, toggleFavorite } = useApp();
   const [imageIndex, setImageIndex] = useState(0);
-  const favorite = Boolean(currentUser?.favorites.includes(selectedListing.id));
+  const favorite = Boolean(currentUser?.favorites?.includes(selectedListing.id));
   const locationUrl = selectedListing.mapUrl || settings.mapUrl;
   const related = useMemo(
     () =>

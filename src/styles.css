@@ -1,3 +1,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+.auth-paper {
+  background-image:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+    linear-gradient(rgba(15, 23, 42, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, black 12%, transparent 72%);
+}
+
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #020617;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}

@@ -10,13 +10,19 @@ import { HomePage } from "./pages/HomePage";
 import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { ListingsPage } from "./pages/ListingsPage";
 import { ServiceDetailsPage, ServicesPage } from "./pages/ServicesPage";
+import { useAuth } from "./context/AuthContext";
 
 function AppShell() {
-  const { page } = useApp();
+  const { page, navigate } = useApp();
+  const { user, authLoading } = useAuth();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [page]);
+
+  useEffect(() => {
+    if (!authLoading && page === "dashboard" && user?.role !== "ADMIN") navigate(user ? "home" : "login");
+  }, [authLoading, navigate, page, user]);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(180,133,47,0.12),transparent_34%),linear-gradient(180deg,#fffaf0_0%,#f8fafc_36%,#ffffff_100%)] font-sans text-slate-950 selection:bg-amber-200 selection:text-slate-950">
@@ -30,7 +36,7 @@ function AppShell() {
         {page === "service-details" && <ServiceDetailsPage />}
         {page === "login" && <AuthPage mode="login" />}
         {page === "register" && <AuthPage mode="register" />}
-        {page === "dashboard" && <DashboardPage />}
+        {page === "dashboard" && user?.role === "ADMIN" && <DashboardPage />}
       </main>
       <Footer />
       <Toast />

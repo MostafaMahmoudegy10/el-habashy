@@ -138,6 +138,7 @@ function ProfileSection() {
   return (
     <section className="mx-auto grid max-w-7xl gap-8 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:px-6">
       <div>
+        {aboutContent.profileImage ? <LazyImage src={aboutContent.profileImage} alt={t.aboutProfile} className="mb-6 aspect-[1.8] w-full rounded-[2rem] object-cover shadow-xl shadow-slate-950/10" /> : null}
         <span className="text-xs font-black uppercase text-amber-700">{t.aboutProfile}</span>
         <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
           {lang === "ar" ? "خبرة وراثة ودراسة منذ 1944." : "Inherited and studied expertise since 1944."}

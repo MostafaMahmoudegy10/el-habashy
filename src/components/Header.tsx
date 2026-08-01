@@ -1,8 +1,9 @@
-import { FiChevronDown, FiGlobe, FiHeart, FiLogIn, FiMenu, FiUserPlus, FiX } from "react-icons/fi";
+import { FiChevronDown, FiGlobe, FiLogIn, FiMenu, FiUserPlus, FiX } from "react-icons/fi";
 import { Brand } from "./Brand";
 import { useApp } from "../context/AppContext";
 import { categoryIcon } from "../lib/icons";
 import type { AboutSection, Page } from "../types";
+import { useAuth } from "../context/AuthContext";
 
 export function Header() {
   const {
@@ -21,9 +22,7 @@ export function Header() {
     setMobileOpen,
   } = useApp();
 
-  const navItems: Array<{ id: Page; label: string }> = [
-    { id: "dashboard", label: t.dashboard },
-  ];
+  const navItems: Array<{ id: Page; label: string }> = currentUser?.role === "ADMIN" ? [{ id: "dashboard", label: t.dashboard }] : [];
   const arbitration = services.filter((item) => item.kind === "arbitration");
   const valuation = services.find((item) => item.kind === "valuation");
   const consulting = services.find((item) => item.kind === "consulting");
@@ -151,15 +150,20 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          {currentUser ? (
-            <span className="hidden items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 2xl:inline-flex">
-              <FiHeart />
-              {currentUser.favorites.length}
-            </span>
-          ) : null}
-          <div className="hidden items-center gap-2 2xl:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <AuthButtons />
           </div>
+          {!currentUser ? (
+            <button
+              type="button"
+              onClick={() => navigate("login")}
+              aria-label={t.login}
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-black shadow-sm transition xl:hidden ${page === "login" || page === "register" ? "bg-amber-500 text-slate-950" : "border border-slate-200 bg-white text-slate-800 hover:border-amber-400 hover:bg-amber-50"}`}
+            >
+              <FiLogIn />
+              <span className="hidden sm:inline">{t.login}</span>
+            </button>
+          ) : null}
           <div className="group relative">
             <button type="button" className="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm transition hover:border-amber-300 hover:bg-amber-50" aria-label="Change language">
               <FiGlobe /><span className="hidden sm:inline">{lang === "ar" ? "العربية" : lang === "fr" ? "Français" : "English"}</span><FiChevronDown />
@@ -183,18 +187,11 @@ export function Header() {
 }
 
 function AuthButtons() {
-  const { currentUser, t, navigate } = useApp();
+  const { currentUser, page, t, navigate } = useApp();
+  const { logout } = useAuth();
 
   if (currentUser) {
-    return (
-      <button
-        type="button"
-        onClick={() => navigate("dashboard")}
-        className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm"
-      >
-        {currentUser.name}
-      </button>
-    );
+    return <div className="flex gap-2"><button type="button" onClick={() => currentUser.role === "ADMIN" ? navigate("dashboard") : navigate("home")} className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm">{currentUser.firstName}</button><button type="button" onClick={async () => { await logout(); navigate("home"); }} className="min-h-11 rounded-full px-3 text-xs font-black text-slate-500 hover:text-rose-600">{t.logout}</button></div>;
   }
 
   return (
@@ -202,7 +199,7 @@ function AuthButtons() {
       <button
         type="button"
         onClick={() => navigate("login")}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:border-amber-300"
+        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 ${page === "login" ? "border-amber-400 bg-amber-50 text-amber-900" : "border-slate-300 bg-white text-slate-800 hover:border-amber-400 hover:bg-amber-50"}`}
       >
         <FiLogIn />
         {t.login}
@@ -210,7 +207,7 @@ function AuthButtons() {
       <button
         type="button"
         onClick={() => navigate("register")}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800"
+        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-sm font-black shadow-lg transition hover:-translate-y-0.5 ${page === "register" ? "bg-amber-500 text-slate-950 shadow-amber-500/20" : "bg-slate-950 text-white shadow-slate-950/15 hover:bg-amber-600"}`}
       >
         <FiUserPlus />
         {t.register}

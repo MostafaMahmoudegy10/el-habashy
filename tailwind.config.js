@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "Cairo", "Segoe UI", "Tahoma", "Arial", "sans-serif"],
+        sans: ["Cairo Variable", "Segoe UI", "Tahoma", "Arial", "sans-serif"],
       },
       boxShadow: {
         soft: "0 18px 50px rgba(15, 23, 42, 0.10)",

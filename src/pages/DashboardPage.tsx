@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -12,6 +12,7 @@ import {
   FiFolderPlus,
   FiGrid,
   FiLayers,
+  FiLoader,
   FiMapPin,
   FiPlus,
   FiSave,
@@ -29,6 +30,9 @@ import { listingToDraft, useApp } from "../context/AppContext";
 import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
 import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
+import { useAuth } from "../context/AuthContext";
+import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
+import { ApiError } from "../lib/api";
 
 async function readImages(files: FileList | null) {
   const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
@@ -58,7 +62,6 @@ export function DashboardPage() {
     lang,
     t,
     listings,
-    users,
     settings,
     aboutContent,
     sectors,
@@ -318,15 +321,7 @@ export function DashboardPage() {
 
         {dashboardView === "users" ? (
           <Panel title={t.users} icon={FiUsers}>
-            <div className="grid gap-3 md:grid-cols-2">
-              {users.map((user) => (
-                <div key={user.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <strong className="block text-lg font-black text-slate-950">{user.name}</strong>
-                  <span className="mt-1 block text-sm font-bold text-slate-500">{user.email}</span>
-                  <span className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{user.role}</span>
-                </div>
-              ))}
-            </div>
+            <AdminUsers />
           </Panel>
         ) : null}
 
@@ -1253,6 +1248,35 @@ function Field({
       />
     </label>
   );
+}
+
+function AdminUsers() {
+  const { authorizedRequest } = useAuth();
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [changing, setChanging] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true); setError("");
+    authorizedRequest<PageResponse<AuthUser>>("/api/v1/admin/users?page=0&size=20")
+      .then((page) => setUsers(page.content))
+      .catch((caught) => setError(caught instanceof ApiError ? caught.message : "تعذر تحميل المستخدمين."))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [authorizedRequest]);
+
+  const patch = async (user: AuthUser, kind: "role" | "status", value: UserRole | boolean) => {
+    setChanging(user.id); setError("");
+    try {
+      await authorizedRequest(`/api/v1/admin/users/${user.id}/${kind}`, { method: "PATCH", body: kind === "role" ? { role: value } : { enabled: value } });
+      setUsers((all) => all.map((item) => item.id === user.id ? { ...item, [kind === "role" ? "role" : "enabled"]: value } : item));
+    } catch (caught) { setError(caught instanceof ApiError ? caught.message : "تعذر حفظ التغيير."); }
+    finally { setChanging(null); }
+  };
+
+  if (loading) return <div className="grid min-h-40 place-items-center"><FiLoader className="animate-spin text-2xl text-amber-600" /></div>;
+  return <div className="grid gap-3">{error && <div className="flex items-center justify-between rounded-2xl bg-rose-50 p-4 text-sm font-bold text-rose-700"><span>{error}</span><button onClick={load} className="font-black underline">إعادة المحاولة</button></div>}<div className="grid gap-3 md:grid-cols-2">{users.map((user) => <div key={user.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><span><strong className="block text-lg font-black text-slate-950">{user.firstName} {user.lastName}</strong><small className="mt-1 block font-bold text-slate-500">{user.email}</small></span><span className={`h-3 w-3 rounded-full ${user.enabled ? "bg-emerald-500" : "bg-rose-500"}`} /></div><div className="mt-5 grid grid-cols-2 gap-2"><select disabled={changing === user.id} value={user.role} onChange={(e) => patch(user, "role", e.target.value as UserRole)} className="h-10 rounded-xl border border-slate-200 px-3 text-xs font-black"><option value="USER">USER</option><option value="ADMIN">ADMIN</option></select><button disabled={changing === user.id} onClick={() => patch(user, "status", !user.enabled)} className={`rounded-xl text-xs font-black ${user.enabled ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{user.enabled ? "تعطيل" : "تفعيل"}</button></div></div>)}</div>{!users.length && !error && <p className="py-10 text-center text-sm font-bold text-slate-400">لا يوجد مستخدمون.</p>}</div>;
 }
 
 function Textarea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

@@ -12,8 +12,8 @@ import {
   initialSectors,
   initialSettings,
   initialSubscribers,
-  initialUsers,
 } from "../data/properties";
+import { useAuth } from "./AuthContext";
 import { copy } from "../lib/i18n";
 import { initialServices } from "../data/services";
 import { sanitizeRichText } from "../lib/richText";
@@ -31,7 +31,6 @@ import type {
   LocalizedText,
   Page,
   Sector,
-  User,
   WorkCategory,
   ServiceArticle,
   ServiceDraft,
@@ -45,7 +44,6 @@ type AppContextValue = {
   mobileOpen: boolean;
   listings: Listing[];
   subscribers: typeof initialSubscribers;
-  users: User[];
   settings: AppSettings;
   aboutContent: AboutContent;
   sectors: Sector[];
@@ -53,7 +51,7 @@ type AppContextValue = {
   selectedService: ServiceArticle;
   selectedListing: Listing;
   listingCategoryFilter: ListingCategory | "all";
-  currentUser: User | null;
+  currentUser: ReturnType<typeof useAuth>["user"];
   toast: string;
   t: (typeof copy)[Language];
   setLang: (lang: Language) => void;
@@ -68,7 +66,6 @@ type AppContextValue = {
   getWhatsAppUrl: (listing: Listing, phone?: string) => string;
   trackWhatsApp: (id: number) => void;
   toggleFavorite: (id: number) => void;
-  completeAuth: (mode: "login" | "register", payload: { name: string; email: string }) => void;
   addListing: (draft: ListingDraft) => void;
   updateListing: (id: number, draft: ListingDraft) => void;
   deleteListing: (id: number) => void;
@@ -96,7 +93,6 @@ const fallbackImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
 const storageKeys = {
   listings: "elhabashy:listings",
-  users: "elhabashy:users",
   settings: "elhabashy:settings",
   aboutContent: "elhabashy:about-content",
   sectors: "elhabashy:sectors",
@@ -148,13 +144,14 @@ function normalizeText(value?: Partial<LocalizedText>): LocalizedText {
 }
 
 function normalizeService(service: ServiceArticle): ServiceArticle {
+  const seed = initialServices.find((item) => item.id === service.id);
   return {
     ...service,
     title: normalizeText(service.title),
     summary: normalizeText(service.summary),
     content: normalizeText(service.content),
-    gallery: Array.isArray(service.gallery) ? service.gallery.filter(Boolean) : [],
-    image: service.image || fallbackImage,
+    gallery: Array.isArray(service.gallery) && service.gallery.filter(Boolean).length ? service.gallery.filter(Boolean) : seed?.gallery ?? [],
+    image: service.image || seed?.image || fallbackImage,
   };
 }
 
@@ -163,6 +160,7 @@ function normalizeCategory(value: string): ListingCategory {
 }
 
 function normalizeListing(listing: Listing): Listing {
+  const seed = initialListings.find((item) => item.id === listing.id);
   return {
     ...listing,
     category: normalizeCategory(String((listing as { category?: string }).category ?? "other")),
@@ -176,11 +174,15 @@ function normalizeListing(listing: Listing): Listing {
       label: normalizeText(spec.label),
       value: normalizeText(spec.value),
     })),
-    beneficiary: listing.beneficiary ? normalizeText(listing.beneficiary) : undefined,
-    venue: listing.venue ? normalizeText(listing.venue) : undefined,
-    announcementSource: listing.announcementSource ? normalizeText(listing.announcementSource) : undefined,
-    notes: listing.notes ? normalizeText(listing.notes) : undefined,
-    mapUrl: listing.mapUrl ?? "",
+    publishDate: listing.publishDate || seed?.publishDate,
+    expireDate: listing.expireDate || seed?.expireDate,
+    auctionDate: listing.auctionDate || seed?.auctionDate,
+    auctionTime: listing.auctionTime || seed?.auctionTime,
+    beneficiary: listing.beneficiary ? normalizeText(listing.beneficiary) : seed?.beneficiary ? normalizeText(seed.beneficiary) : undefined,
+    venue: listing.venue ? normalizeText(listing.venue) : seed?.venue ? normalizeText(seed.venue) : undefined,
+    announcementSource: listing.announcementSource ? normalizeText(listing.announcementSource) : seed?.announcementSource ? normalizeText(seed.announcementSource) : undefined,
+    notes: listing.notes ? normalizeText(listing.notes) : seed?.notes ? normalizeText(seed.notes) : undefined,
+    mapUrl: listing.mapUrl || seed?.mapUrl || "",
     whatsappClicks: listing.whatsappClicks ?? 0,
     seoTitle: listing.seoTitle ? normalizeText(listing.seoTitle) : undefined,
     seoDescription: listing.seoDescription ? normalizeText(listing.seoDescription) : undefined,
@@ -195,27 +197,38 @@ function normalizeSettings(settings: Partial<AppSettings>): AppSettings {
     whatsappMessageFr: settings.whatsappMessageFr || settings.whatsappMessageEn || initialSettings.whatsappMessageFr,
     officeAddress: normalizeText(settings.officeAddress ?? initialSettings.officeAddress),
     mapUrl: settings.mapUrl ?? initialSettings.mapUrl,
+    facebookUrl: settings.facebookUrl || initialSettings.facebookUrl,
+    linkedinUrl: settings.linkedinUrl || initialSettings.linkedinUrl,
   };
 }
 
 function normalizeAboutContent(content: AboutContent): AboutContent {
+  const storedWork = Array.isArray(content.workCategories) ? content.workCategories : [];
+  const storedCertificates = Array.isArray(content.certificates) ? content.certificates : [];
+  const workCategories = [...storedWork, ...initialAboutContent.workCategories.filter((seed) => !storedWork.some((item) => item.id === seed.id))];
+  const certificates = [...storedCertificates, ...initialAboutContent.certificates.filter((seed) => !storedCertificates.some((item) => item.id === seed.id))];
   return {
     ...content,
-    profile: normalizeText(content.profile),
-    workCategories: content.workCategories.map((category) => ({
+    profile: normalizeText(content.profile ?? initialAboutContent.profile),
+    profileImage: content.profileImage || initialAboutContent.profileImage,
+    workCategories: workCategories.map((category) => ({
       ...category,
       title: normalizeText(category.title),
       items: category.items.map((item) => normalizeText(item)),
     })),
-    certificates: content.certificates.map((certificate) => ({
+    certificates: certificates.map((certificate) => {
+      const seed = initialAboutContent.certificates.find((item) => item.id === certificate.id);
+      return ({
       ...certificate,
       title: normalizeText(certificate.title),
       description: normalizeText(certificate.description),
-    })),
+      image: certificate.image || seed?.image,
+    }); }),
     structure: {
-      ...content.structure,
-      leaders: content.structure.leaders.map((item) => normalizeText(item)),
-      departments: content.structure.departments.map((item) => normalizeText(item)),
+      ...(content.structure ?? initialAboutContent.structure),
+      image: content.structure?.image || initialAboutContent.structure.image,
+      leaders: (content.structure?.leaders?.length ? content.structure.leaders : initialAboutContent.structure.leaders).map((item) => normalizeText(item)),
+      departments: (content.structure?.departments?.length ? content.structure.departments : initialAboutContent.structure.departments).map((item) => normalizeText(item)),
     },
   };
 }
@@ -346,6 +359,7 @@ export function listingToDraft(listing?: Listing): ListingDraft {
 }
 
 export function AppProvider({ children }: PropsWithChildren) {
+  const { user: currentUser } = useAuth();
   const [lang, setLang] = useState<Language>("ar");
   const [page, setPage] = useState<Page>("home");
   const [aboutSection, setAboutSection] = useState<AboutSection>("profile");
@@ -354,7 +368,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [listings, setListings] = useState<Listing[]>(() =>
     readStored<Listing[]>(storageKeys.listings, initialListings).map(normalizeListing),
   );
-  const [users, setUsers] = useState<User[]>(() => readStored(storageKeys.users, initialUsers));
   const [settings, setSettings] = useState<AppSettings>(() =>
     normalizeSettings(readStored<Partial<AppSettings>>(storageKeys.settings, initialSettings)),
   );
@@ -371,7 +384,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [selectedServiceId, setSelectedServiceId] = useState(initialServices[0].id);
   const [selectedListingId, setSelectedListingId] = useState(initialListings[0].id);
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory | "all">("all");
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [toast, setToast] = useState("");
 
   const t = copy[lang];
@@ -392,10 +404,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     window.localStorage.setItem(storageKeys.listings, JSON.stringify(listings));
   }, [listings]);
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKeys.users, JSON.stringify(users));
-  }, [users]);
 
   useEffect(() => {
     window.localStorage.setItem(storageKeys.settings, JSON.stringify(settings));
@@ -422,7 +430,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       mobileOpen,
       listings,
       subscribers: initialSubscribers,
-      users,
       settings,
       aboutContent,
       sectors,
@@ -493,45 +500,7 @@ export function AppProvider({ children }: PropsWithChildren) {
           setPage("login");
           return;
         }
-        setCurrentUser((user) =>
-          user
-            ? {
-                ...user,
-                favorites: user.favorites.includes(id)
-                  ? user.favorites.filter((item) => item !== id)
-                  : [...user.favorites, id],
-              }
-            : user,
-        );
-        setUsers((current) =>
-          current.map((user) =>
-            user.id === currentUser.id
-              ? {
-                  ...user,
-                  favorites: user.favorites.includes(id)
-                    ? user.favorites.filter((item) => item !== id)
-                    : [...user.favorites, id],
-                }
-              : user,
-          ),
-        );
-      },
-      completeAuth(mode, payload) {
-        const existing = users.find((user) => user.email.toLowerCase() === payload.email.toLowerCase());
-        const user =
-          existing ??
-          {
-            id: Math.max(0, ...users.map((item) => item.id)) + 1,
-            name: payload.name || payload.email.split("@")[0],
-            email: payload.email,
-            role: "customer" as const,
-            favorites: [],
-          };
-
-        if (!existing) setUsers((current) => [...current, user]);
-        setCurrentUser(user);
-        setToast(mode === "register" ? t.accountReady : t.loginReady);
-        setPage("home");
+        setToast(lang === "ar" ? "سيتم توفير المفضلة قريبًا." : "Favorites will be available soon.");
       },
       addListing(draft) {
         const nextId = Math.max(0, ...listings.map((listing) => listing.id)) + 1;
@@ -656,7 +625,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       selectedService,
       t,
       toast,
-      users,
     ],
   );
 

@@ -137,14 +137,6 @@ export type Subscriber = {
   budget: string;
 };
 
-export type User = {
-  id: number;
-  name: string;
-  email: string;
-  role: "admin" | "customer";
-  favorites: number[];
-};
-
 export type StatCard = {
   label: string;
   value: ReactNode;

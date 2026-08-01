@@ -12,7 +12,7 @@ import type { Listing } from "../types";
 export function ListingCard({ listing, elevated = false }: { listing: Listing; elevated?: boolean }) {
   const { lang, t, sectors, currentUser, selectListing, toggleFavorite } = useApp();
   const CategoryIcon = categoryIcon[listing.category];
-  const favorite = Boolean(currentUser?.favorites.includes(listing.id));
+  const favorite = Boolean(currentUser?.favorites?.includes(listing.id));
 
   return (
     <article
