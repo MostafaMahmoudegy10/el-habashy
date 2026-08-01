@@ -1,4 +1,10 @@
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://el-habashy-back-1947033daeaf.herokuapp.com").replace(/\/$/, "");
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+// Production uses Vercel's same-origin /api rewrite so authentication cookies
+// remain first-party. Development can still target a local or remote backend.
+export const API_BASE_URL = import.meta.env.PROD
+  ? ""
+  : (configuredApiBaseUrl || "http://localhost:8080").replace(/\/$/, "");
 
 export type ProblemDetails = {
   type?: string;
