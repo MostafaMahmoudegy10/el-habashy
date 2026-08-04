@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type Language = "ar" | "en" | "fr";
+export type Language = "ar" | "en";
 
 export type Page = "home" | "about" | "listings" | "details" | "services" | "service-details" | "login" | "register" | "dashboard";
 
@@ -31,7 +31,6 @@ export type ListingCategory = "real-estate" | "movables" | "cars" | "antiques" |
 export type LocalizedText = {
   ar: string;
   en: string;
-  [key: string]: string;
 };
 
 export type Specification = {
@@ -70,31 +69,26 @@ export type Listing = {
   seoTitle?: LocalizedText;
   seoDescription?: LocalizedText;
   seoKeywords?: LocalizedText;
+  updatedAt?: string;
 };
 
 export type ListingDraft = {
   titleAr: string;
   titleEn: string;
-  titleFr: string;
   category: ListingCategory;
   status: ListingStatus;
   thumbnail: string;
   gallery: string[];
   descriptionAr: string;
   descriptionEn: string;
-  descriptionFr: string;
   summaryAr: string;
   summaryEn: string;
-  summaryFr: string;
   locationAr: string;
   locationEn: string;
-  locationFr: string;
   cityAr: string;
   cityEn: string;
-  cityFr: string;
   priceLabelAr: string;
   priceLabelEn: string;
-  priceLabelFr: string;
   measureLabel: string;
   publishDate: string;
   expireDate: string;
@@ -102,27 +96,20 @@ export type ListingDraft = {
   auctionTime: string;
   beneficiaryAr: string;
   beneficiaryEn: string;
-  beneficiaryFr: string;
   venueAr: string;
   venueEn: string;
-  venueFr: string;
   announcementSourceAr: string;
   announcementSourceEn: string;
-  announcementSourceFr: string;
   notesAr: string;
   notesEn: string;
-  notesFr: string;
   mapUrl: string;
   whatsappPhone: string;
   seoTitleAr: string;
   seoTitleEn: string;
-  seoTitleFr: string;
   seoDescriptionAr: string;
   seoDescriptionEn: string;
-  seoDescriptionFr: string;
   seoKeywordsAr: string;
   seoKeywordsEn: string;
-  seoKeywordsFr: string;
   seoSlug: string;
   featured: boolean;
 };
@@ -147,7 +134,6 @@ export type AppSettings = {
   whatsappNumber: string;
   whatsappMessageAr: string;
   whatsappMessageEn: string;
-  whatsappMessageFr: string;
   contactPhone: string;
   contactEmail: string;
   officeAddress: LocalizedText;
@@ -166,6 +152,8 @@ export type Sector = {
   id: ListingCategory;
   title: LocalizedText;
   description: LocalizedText;
+  displayOrder?: number;
+  updatedAt?: string;
 };
 
 export type Certificate = {

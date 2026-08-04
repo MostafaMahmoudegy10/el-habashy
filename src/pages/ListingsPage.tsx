@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { FiGrid, FiList, FiSearch, FiSliders } from "react-icons/fi";
+import { FiGrid, FiList, FiLoader, FiSearch, FiSliders } from "react-icons/fi";
 import { statusLabel } from "../lib/i18n";
 import { getSectorTitle } from "../lib/sectors";
 import { stripRichText } from "../lib/richText";
@@ -13,7 +13,18 @@ import type { ListingCategory, ListingStatus } from "../types";
 type SortMode = "latest" | "views" | "whatsapp";
 
 export function ListingsPage() {
-  const { lang, t, listings, sectors, listingCategoryFilter, setListingCategoryFilter, selectListing } = useApp();
+  const {
+    lang,
+    t,
+    listings,
+    listingsLoading,
+    listingsError,
+    reloadContent,
+    sectors,
+    listingCategoryFilter,
+    setListingCategoryFilter,
+    selectListing,
+  } = useApp();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<"all" | ListingCategory>(listingCategoryFilter);
   const [status, setStatus] = useState<"all" | ListingStatus>("all");
@@ -118,7 +129,7 @@ export function ListingsPage() {
             ))}
           </Select>
 
-          <Select label={lang === "ar" ? "الترتيب" : lang === "fr" ? "Tri" : "Sort"} value={sort} onChange={(value) => setSort(value as SortMode)}>
+          <Select label={lang === "ar" ? "الترتيب" : "Sort"} value={sort} onChange={(value) => setSort(value as SortMode)}>
             <option value="latest">{t.sortLatest}</option>
             <option value="views">{t.sortViews}</option>
             <option value="whatsapp">{t.sortWhatsapp}</option>
@@ -146,7 +157,15 @@ export function ListingsPage() {
           </div>
         </div>
 
-        {filtered.length ? (
+        {listingsLoading ? (
+          <div className="grid min-h-80 place-items-center rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <span className="grid gap-3 text-sm font-black text-slate-600"><FiLoader className="mx-auto animate-spin text-3xl text-amber-600" />{lang === "ar" ? "جاري تحميل الإعلانات..." : "Loading listings..."}</span>
+          </div>
+        ) : listingsError ? (
+          <div className="grid min-h-80 place-items-center rounded-[2rem] border border-rose-200 bg-rose-50 p-8 text-center shadow-sm">
+            <div><strong className="block text-lg font-black text-rose-700">{listingsError}</strong><button type="button" onClick={() => void reloadContent()} className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
+          </div>
+        ) : filtered.length ? (
           layout === "grid" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((listing) => (
