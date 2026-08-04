@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -33,7 +33,7 @@ import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, Li
 import { useAuth } from "../context/AuthContext";
 import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
 import { ApiError } from "../lib/api";
-import { mediaContentType } from "../lib/listingMediaApi";
+import { mediaContentType, MediaProcessingFailedError } from "../lib/listingMediaApi";
 
 function requestError(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
@@ -513,7 +513,7 @@ function SectorEditor({
   );
 }
 
-type PendingMediaStatus = "selected" | "ticket" | "uploading" | "completing" | "ready" | "failed";
+type PendingMediaStatus = "selected" | "sending" | "uploading" | "processing" | "ready" | "failed" | "error";
 type PendingMedia = {
   key: string;
   file: File;
@@ -572,7 +572,10 @@ function ListingForm({
   const [savedListing, setSavedListing] = useState<Listing | null>(null);
   const [deletingMediaId, setDeletingMediaId] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const mediaBusy = pendingMedia.some((item) => ["ticket", "uploading", "completing"].includes(item.status));
+  const uploadController = useRef<AbortController | null>(null);
+  const mediaBusy = pendingMedia.some((item) => ["sending", "uploading", "processing"].includes(item.status));
+
+  useEffect(() => () => uploadController.current?.abort(), []);
 
   const patchDraft = <K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -583,23 +586,30 @@ function ListingForm({
   };
 
   const uploadOne = async (listingId: number, item: PendingMedia) => {
-    patchPending(item.key, { status: "ticket", progress: 0, error: undefined });
+    if (!uploadController.current || uploadController.current.signal.aborted) {
+      uploadController.current = new AbortController();
+    }
+    patchPending(item.key, { status: "sending", progress: 0, error: undefined });
     try {
       const media = await uploadListingMedia(listingId, item.file, item.role, {
-        onStage(stage, ticketMedia) {
+        signal: uploadController.current.signal,
+        onMedia(serverMedia) {
           patchPending(item.key, {
-            status: stage,
-            mediaId: ticketMedia?.id,
+            status: serverMedia.status,
+            progress: serverMedia.progress,
+            media: serverMedia,
+            mediaId: serverMedia.id,
           });
         },
-        onProgress(progress) {
-          patchPending(item.key, { progress });
-        },
       });
-      patchPending(item.key, { status: "ready", progress: 100, media, mediaId: media.id });
+      patchPending(item.key, { status: media.status, progress: media.progress, media, mediaId: media.id });
       return true;
     } catch (caught) {
-      patchPending(item.key, { status: "failed", error: requestError(caught, "تعذر رفع الملف.") });
+      if (caught instanceof Error && caught.name === "AbortError") return false;
+      patchPending(item.key, {
+        status: caught instanceof MediaProcessingFailedError ? "failed" : "error",
+        error: requestError(caught, "تعذر رفع الملف أو متابعة حالته."),
+      });
       return false;
     }
   };
@@ -613,6 +623,7 @@ function ListingForm({
       const persisted = await onSubmit(draft);
       setSavedListing(persisted);
       setSaving(false);
+      uploadController.current = new AbortController();
       const selected = pendingMedia.filter((item) => item.status === "selected");
       if (!selected.length) {
         onFinished();
@@ -802,8 +813,8 @@ function ListingForm({
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
             <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-7 text-sky-900">
               {lang === "ar"
-                ? "سيتم حفظ بيانات الإعلان أولًا، ثم رفع كل ملف مباشرة إلى Cloudinary. إنشاء الإعلان لا يتم إلغاؤه إذا فشل ملف، ويمكنك إعادة محاولة الملف وحده."
-                : "Listing metadata is saved first, then each file uploads directly to Cloudinary. A failed file does not roll back the listing and can be retried separately."}
+                ? "سيتم حفظ بيانات الإعلان أولًا، ثم إرسال الملفات إلى الباك. الصور تُحفظ فور اكتمال رفعها، والفيديو الكبير يعالجه الباك في الخلفية على أجزاء مع عرض تقدمه هنا. فشل ملف لا يلغي إنشاء الإعلان ويمكن إعادة محاولته وحده."
+                : "Listing metadata is saved first, then files are sent through the backend. Images finish in the request, while large videos are processed in background chunks with server progress shown here. A failed file does not roll back the listing and can be retried separately."}
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               <FileInput disabled={Boolean(savedListing)} accept="image/jpeg,image/png,image/webp,image/gif" label={t.thumbnail} button={t.chooseImage} onChange={(event) => { chooseMedia("thumbnail", event.target.files); event.target.value = ""; }} />
@@ -818,7 +829,7 @@ function ListingForm({
                   <div key={media.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{media.fileName}</strong><MediaBadge value={media.role} /><MediaBadge value={media.status} /></div>
-                      <small className="mt-1 block font-bold text-slate-500">{media.contentType}{media.bytes ? ` · ${mediaSize(media.bytes)}` : ""}{media.failureReason ? ` · ${media.failureReason}` : ""}</small>
+                      <small className="mt-1 block font-bold text-slate-500">{media.contentType}{media.expectedBytes ? ` · ${mediaSize(media.uploadedBytes)}/${mediaSize(media.expectedBytes)} · ${media.progress}%` : media.bytes ? ` · ${mediaSize(media.bytes)}` : ""}{media.failureReason ? ` · ${media.failureReason}` : ""}</small>
                     </div>
                     <button disabled={deletingMediaId === media.id || mediaBusy} type="button" onClick={() => void removeExistingMedia(media)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 text-xs font-black text-rose-700 disabled:opacity-50">
                       {deletingMediaId === media.id ? <FiLoader className="animate-spin" /> : <FiTrash2 />}{lang === "ar" ? "حذف الملف" : "Delete media"}
@@ -834,13 +845,13 @@ function ListingForm({
                 {pendingMedia.map((item) => (
                   <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status} /></div><small className="mt-1 block font-bold text-slate-500">{mediaContentType(item.file)} · {mediaSize(item.file.size)}</small></div>
+                      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status === "error" && item.media ? item.media.status : item.status} />{item.status === "error" && item.media ? <MediaBadge value="client-error" /> : null}</div><small className="mt-1 block font-bold text-slate-500">{mediaContentType(item.file)} · {mediaSize(item.file.size)}</small></div>
                       <div className="flex gap-2">
-                        {item.status === "failed" && savedListing ? <button disabled={mediaBusy || deletingMediaId === item.mediaId} type="button" onClick={() => void retryMedia(item)} className="h-10 rounded-xl bg-amber-100 px-4 text-xs font-black text-amber-900">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button> : null}
+                        {(item.status === "failed" || item.status === "error") && savedListing ? <button disabled={mediaBusy || deletingMediaId === item.mediaId} type="button" onClick={() => void retryMedia(item)} className="h-10 rounded-xl bg-amber-100 px-4 text-xs font-black text-amber-900">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button> : null}
                         {item.status === "selected" && !savedListing ? <button type="button" onClick={() => setPendingMedia((current) => current.filter((entry) => entry.key !== item.key))} className="h-10 rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-700">{lang === "ar" ? "إزالة" : "Remove"}</button> : null}
                       </div>
                     </div>
-                    {item.status !== "selected" ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all ${item.status === "failed" ? "bg-rose-500" : item.status === "ready" ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${item.status === "failed" ? Math.max(4, item.progress) : item.progress}%` }} /></div> : null}
+                    {item.status !== "selected" ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all ${item.status === "failed" || item.status === "error" ? "bg-rose-500" : item.status === "ready" ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${item.status === "failed" || item.status === "error" || item.status === "sending" ? Math.max(4, item.progress) : item.progress}%` }} /></div> : null}
                     {item.error ? <p className="mt-2 text-xs font-black text-rose-700">{item.error}</p> : null}
                   </div>
                 ))}
@@ -1405,9 +1416,9 @@ function SmallMetric({ label, value, hint }: { label: string; value: number | st
 function MediaBadge({ value }: { value: string }) {
   const tone = value === "ready"
     ? "bg-emerald-100 text-emerald-800"
-    : value === "failed"
+    : value === "failed" || value === "error" || value === "client-error"
       ? "bg-rose-100 text-rose-800"
-      : value === "uploading" || value === "completing" || value === "ticket" || value === "processing"
+      : value === "sending" || value === "uploading" || value === "processing"
         ? "bg-amber-100 text-amber-800"
         : "bg-slate-100 text-slate-700";
   return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}>{value}</span>;

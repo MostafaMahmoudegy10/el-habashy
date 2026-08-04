@@ -24,7 +24,7 @@ import {
   type SectorResponse,
   type UpsertListingBody,
 } from "../lib/contentApi";
-import { listingMediaApi, type MediaUploadStage } from "../lib/listingMediaApi";
+import { listingMediaApi } from "../lib/listingMediaApi";
 import type {
   AboutContent,
   AboutSection,
@@ -95,7 +95,7 @@ type AppContextValue = {
     listingId: number,
     file: File,
     role: ListingMediaRole,
-    callbacks?: { onStage?: (stage: MediaUploadStage, media?: ListingMedia) => void; onProgress?: (progress: number) => void },
+    options?: { signal?: AbortSignal; onMedia?: (media: ListingMedia) => void },
   ) => Promise<ListingMedia>;
   deleteListingMedia: (listingId: number, mediaId: number) => Promise<void>;
   updateSettings: (settings: AppSettings) => void;
@@ -702,12 +702,13 @@ export function AppProvider({ children }: PropsWithChildren) {
         setToast(t.success);
         return updated;
       },
-      async uploadListingMedia(listingId, file, role, callbacks) {
+      async uploadListingMedia(listingId, file, role, options) {
         try {
-          const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, callbacks);
+          const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, options);
           await Promise.all([reloadAdminListings(), loadPublicListings()]);
           return media;
         } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") throw error;
           await reloadAdminListings();
           throw error;
         }

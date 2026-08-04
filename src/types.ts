@@ -54,6 +54,9 @@ export type ListingMedia = {
   width?: number;
   height?: number;
   bytes?: number;
+  expectedBytes: number;
+  uploadedBytes: number;
+  progress: number;
   durationSeconds?: number;
   displayOrder: number;
   failureReason?: string;
