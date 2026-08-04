@@ -24,6 +24,7 @@ import {
   type SectorResponse,
   type UpsertListingBody,
 } from "../lib/contentApi";
+import { listingMediaApi, type MediaUploadStage } from "../lib/listingMediaApi";
 import type {
   AboutContent,
   AboutSection,
@@ -34,6 +35,8 @@ import type {
   Listing,
   ListingCategory,
   ListingDraft,
+  ListingMedia,
+  ListingMediaRole,
   ListingStatus,
   LocalizedText,
   Page,
@@ -88,7 +91,13 @@ type AppContextValue = {
   updateListing: (id: number, draft: ListingDraft) => Promise<Listing>;
   deleteListing: (id: number) => Promise<void>;
   updateListingStatus: (id: number, status: ListingStatus) => Promise<Listing>;
-  uploadListingImages: (files: File[]) => Promise<string[]>;
+  uploadListingMedia: (
+    listingId: number,
+    file: File,
+    role: ListingMediaRole,
+    callbacks?: { onStage?: (stage: MediaUploadStage, media?: ListingMedia) => void; onProgress?: (progress: number) => void },
+  ) => Promise<ListingMedia>;
+  deleteListingMedia: (listingId: number, mediaId: number) => Promise<void>;
   updateSettings: (settings: AppSettings) => void;
   updateSector: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
   addWorkCategory: (category: Omit<WorkCategory, "id">) => void;
@@ -185,6 +194,7 @@ function normalizeListing(listing: Listing): Listing {
     location: normalizeText(listing.location),
     priceLabel: normalizeText(listing.priceLabel),
     images: Array.isArray(listing.images) && listing.images.length ? listing.images : [fallbackImage],
+    media: Array.isArray(listing.media) ? listing.media : [],
     specs: (Array.isArray(listing.specs) ? listing.specs : []).map((spec) => ({
       label: normalizeText(spec.label),
       value: normalizeText(spec.value),
@@ -336,8 +346,6 @@ function draftToListing(draft: ListingDraft, id: number, current?: Listing): Lis
 
 function draftToRequest(draft: ListingDraft, current?: Listing): UpsertListingBody {
   const listing = draftToListing(draft, current?.id ?? 0, current);
-  const images = [draft.thumbnail, ...draft.gallery].filter(Boolean);
-  if (!images.length) throw new Error("اختر صورة واحدة على الأقل قبل حفظ الإعلان.");
 
   return {
     slug: listing.slug,
@@ -351,7 +359,6 @@ function draftToRequest(draft: ListingDraft, current?: Listing): UpsertListingBo
     priceLabel: listing.priceLabel,
     measureLabel: listing.measureLabel,
     featured: listing.featured,
-    images,
     specs: listing.specs,
     publishDate: listing.publishDate || undefined,
     expireDate: listing.expireDate || undefined,
@@ -695,9 +702,19 @@ export function AppProvider({ children }: PropsWithChildren) {
         setToast(t.success);
         return updated;
       },
-      async uploadListingImages(files) {
-        const response = await adminContentApi.uploadImages(authorizedRequest, files);
-        return response.images.map((image) => image.url);
+      async uploadListingMedia(listingId, file, role, callbacks) {
+        try {
+          const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, callbacks);
+          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          return media;
+        } catch (error) {
+          await reloadAdminListings();
+          throw error;
+        }
+      },
+      async deleteListingMedia(listingId, mediaId) {
+        await listingMediaApi.delete(authorizedRequest, listingId, mediaId);
+        await Promise.all([reloadAdminListings(), loadPublicListings()]);
       },
       updateSettings(nextSettings) {
         setSettings(normalizeSettings(nextSettings));

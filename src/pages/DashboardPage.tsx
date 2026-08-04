@@ -29,10 +29,11 @@ import { getSectorTitle } from "../lib/sectors";
 import { listingToDraft, useApp } from "../context/AppContext";
 import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
-import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
+import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
 import { useAuth } from "../context/AuthContext";
 import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
 import { ApiError } from "../lib/api";
+import { mediaContentType } from "../lib/listingMediaApi";
 
 function requestError(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
@@ -352,10 +353,8 @@ export function DashboardPage() {
           <ListingForm
             title={t.createListing}
             submitLabel={t.saveListing}
-            onSubmit={async (draft) => {
-              await addListing(draft);
-              setDashboardView("listings");
-            }}
+            onSubmit={addListing}
+            onFinished={() => setDashboardView("listings")}
           />
         ) : null}
 
@@ -363,11 +362,13 @@ export function DashboardPage() {
           <ListingForm
             title={t.editListing}
             submitLabel={t.updateListing}
+            listing={listings.find((listing) => listing.id === editingId)}
             initial={listingToDraft(listings.find((listing) => listing.id === editingId))}
             onSubmit={async (draft) => {
-              if (editingId) await updateListing(editingId, draft);
-              setDashboardView("listings");
+              if (!editingId) throw new Error("تعذر تحديد الإعلان المطلوب تعديله.");
+              return updateListing(editingId, draft);
             }}
+            onFinished={() => setDashboardView("listings")}
           />
         ) : null}
 
@@ -512,34 +513,112 @@ function SectorEditor({
   );
 }
 
+type PendingMediaStatus = "selected" | "ticket" | "uploading" | "completing" | "ready" | "failed";
+type PendingMedia = {
+  key: string;
+  file: File;
+  role: ListingMediaRole;
+  status: PendingMediaStatus;
+  progress: number;
+  error?: string;
+  media?: ListingMedia;
+  mediaId?: number;
+};
+
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
+
+function mediaKey(file: File, role: ListingMediaRole) {
+  return `${role}-${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function mediaSize(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function validateMediaFile(file: File, role: ListingMediaRole) {
+  const contentType = mediaContentType(file);
+  if (role === "video") {
+    if (!contentType.startsWith("video/")) return "صيغة الفيديو غير مدعومة.";
+    if (file.size > MAX_VIDEO_BYTES) return "حجم الفيديو يجب ألا يتجاوز 5 GB.";
+    return "";
+  }
+  if (!contentType.startsWith("image/")) return "صيغة الصورة غير مدعومة.";
+  if (file.size > MAX_IMAGE_BYTES) return "حجم كل صورة يجب ألا يتجاوز 20 MB.";
+  return "";
+}
+
 function ListingForm({
   title,
   submitLabel,
   initial = listingToDraft(),
+  listing,
   onSubmit,
+  onFinished,
 }: {
   title: string;
   submitLabel: string;
   initial?: ListingDraft;
-  onSubmit: (draft: ListingDraft) => Promise<unknown>;
+  listing?: Listing;
+  onSubmit: (draft: ListingDraft) => Promise<Listing>;
+  onFinished: () => void;
 }) {
-  const { lang, t, sectors, uploadListingImages } = useApp();
+  const { lang, t, sectors, uploadListingMedia, deleteListingMedia } = useApp();
   const [draft, setDraft] = useState<ListingDraft>(initial);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
+  const [savedListing, setSavedListing] = useState<Listing | null>(null);
+  const [deletingMediaId, setDeletingMediaId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const mediaBusy = pendingMedia.some((item) => ["ticket", "uploading", "completing"].includes(item.status));
 
   const patchDraft = <K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
+  const patchPending = (key: string, patch: Partial<PendingMedia>) => {
+    setPendingMedia((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item));
+  };
+
+  const uploadOne = async (listingId: number, item: PendingMedia) => {
+    patchPending(item.key, { status: "ticket", progress: 0, error: undefined });
+    try {
+      const media = await uploadListingMedia(listingId, item.file, item.role, {
+        onStage(stage, ticketMedia) {
+          patchPending(item.key, {
+            status: stage,
+            mediaId: ticketMedia?.id,
+          });
+        },
+        onProgress(progress) {
+          patchPending(item.key, { progress });
+        },
+      });
+      patchPending(item.key, { status: "ready", progress: 100, media, mediaId: media.id });
+      return true;
+    } catch (caught) {
+      patchPending(item.key, { status: "failed", error: requestError(caught, "تعذر رفع الملف.") });
+      return false;
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (uploading) return;
+    if (mediaBusy || savedListing) return;
     setSaving(true);
     setError("");
     try {
-      await onSubmit(draft);
+      const persisted = await onSubmit(draft);
+      setSavedListing(persisted);
+      setSaving(false);
+      const selected = pendingMedia.filter((item) => item.status === "selected");
+      if (!selected.length) {
+        onFinished();
+        return;
+      }
+      for (const item of selected) await uploadOne(persisted.id, item);
     } catch (caught) {
       setError(requestError(caught, "تعذر حفظ الإعلان."));
     } finally {
@@ -547,35 +626,63 @@ function ListingForm({
     }
   };
 
-  const uploadThumbnail = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
-    if (!files.length) return;
-    setUploading(true);
-    setError("");
-    try {
-      const [image] = await uploadListingImages(files.slice(0, 1));
-      if (image) patchDraft("thumbnail", image);
-    } catch (caught) {
-      setError(requestError(caught, "تعذر رفع الصورة."));
-    } finally {
-      setUploading(false);
-      event.target.value = "";
+  const chooseMedia = (role: ListingMediaRole, files: FileList | null) => {
+    const chosen = Array.from(files ?? []);
+    if (!chosen.length) return;
+    const relevant = role === "gallery" ? chosen : chosen.slice(0, 1);
+    const invalid = relevant.map((file) => validateMediaFile(file, role)).find(Boolean);
+    if (invalid) {
+      setError(invalid);
+      return;
     }
+    const existing = (listing?.media ?? []).some((media) => media.role === role && media.status !== "failed");
+    if (role !== "gallery" && existing) {
+      setError(role === "thumbnail" ? "احذف صورة الغلاف الحالية قبل اختيار بديل." : "احذف الفيديو الحالي قبل اختيار بديل.");
+      return;
+    }
+    const entries = relevant.map((file): PendingMedia => ({
+      key: mediaKey(file, role),
+      file,
+      role,
+      status: "selected",
+      progress: 0,
+    }));
+    setError("");
+    setPendingMedia((current) => role === "gallery"
+      ? [...current.filter((item) => !entries.some((entry) => entry.key === item.key)), ...entries]
+      : [...current.filter((item) => item.role !== role), ...entries]);
   };
 
-  const uploadGallery = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
-    if (!files.length) return;
-    setUploading(true);
+  const retryMedia = async (item: PendingMedia) => {
+    if (!savedListing || mediaBusy) return;
+    if (item.mediaId) {
+      setDeletingMediaId(item.mediaId);
+      try {
+        await deleteListingMedia(savedListing.id, item.mediaId);
+      } catch {
+        // A failed upload may already have been cleaned up; retry with a fresh ticket.
+      } finally {
+        setDeletingMediaId(null);
+      }
+    }
+    await uploadOne(savedListing.id, { ...item, mediaId: undefined });
+  };
+
+  const removeExistingMedia = async (media: ListingMedia) => {
+    const listingId = listing?.id ?? savedListing?.id;
+    if (!listingId) return;
+    setDeletingMediaId(media.id);
     setError("");
     try {
-      const images = await uploadListingImages(files.slice(0, 14));
-      patchDraft("gallery", images);
+      await deleteListingMedia(listingId, media.id);
+      if (media.role === "thumbnail") patchDraft("thumbnail", "");
+      if (media.role === "gallery" && media.url) {
+        setDraft((current) => ({ ...current, gallery: current.gallery.filter((url) => url !== media.url) }));
+      }
     } catch (caught) {
-      setError(requestError(caught, "تعذر رفع الصور."));
+      setError(requestError(caught, "تعذر حذف الملف."));
     } finally {
-      setUploading(false);
-      event.target.value = "";
+      setDeletingMediaId(null);
     }
   };
 
@@ -598,7 +705,7 @@ function ListingForm({
     { label: t.titleAr, done: Boolean(draft.titleAr.trim()) },
     { label: t.category, done: Boolean(draft.category) },
     { label: t.summaryAr, done: Boolean(draft.summaryAr.trim()) },
-    { label: t.thumbnail, done: Boolean(draft.thumbnail || draft.gallery.length) },
+    { label: t.thumbnail, done: Boolean(draft.thumbnail || pendingMedia.some((item) => item.role === "thumbnail")) },
     { label: t.auctionSessionDate, done: Boolean(draft.auctionDate || draft.expireDate) },
     { label: t.seoTitle, done: Boolean(draft.seoTitleAr || draft.seoTitleEn) },
     { label: t.seoDescription, done: Boolean(draft.seoDescriptionAr || draft.seoDescriptionEn) },
@@ -616,9 +723,9 @@ function ListingForm({
               {lang === "ar" ? "املأ البيانات حسب الأقسام، وراجع المعاينة والـ SEO قبل الحفظ." : "Fill each section, then review the preview and SEO before saving."}
             </p>
           </div>
-          <button disabled={saving || uploading} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60">
+          <button disabled={saving || mediaBusy || Boolean(savedListing)} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60">
             {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
-            {saving ? (lang === "ar" ? "جاري الحفظ..." : "Saving...") : submitLabel}
+            {saving ? (lang === "ar" ? "جاري حفظ البيانات..." : "Saving metadata...") : savedListing ? (lang === "ar" ? "تم حفظ البيانات" : "Metadata saved") : submitLabel}
           </button>
         </div>
       </div>
@@ -693,21 +800,59 @@ function ListingForm({
           </FormSection>
 
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
-            {uploading ? <div className="mb-4 flex items-center gap-2 rounded-2xl bg-amber-50 p-3 text-sm font-black text-amber-800"><FiLoader className="animate-spin" />{lang === "ar" ? "جاري رفع الصور..." : "Uploading images..."}</div> : null}
-            <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <div className="grid content-start gap-4">
-                <FileInput label={t.thumbnail} button={t.chooseImage} onChange={uploadThumbnail} />
-                <FileInput label={t.galleryImages} button={t.chooseImages} onChange={uploadGallery} multiple />
-              </div>
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(220px,0.9fr)]">
-                <LazyImage src={previewImage} alt="" className="aspect-[1.85] w-full rounded-3xl object-cover" />
-                <div className="grid grid-cols-3 gap-2">
-                  {[draft.thumbnail, ...draft.gallery].filter(Boolean).slice(0, 6).map((image) => (
-                    <LazyImage key={image} src={image} alt="" className="aspect-square rounded-2xl object-cover" />
-                  ))}
-                </div>
-              </div>
+            <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-7 text-sky-900">
+              {lang === "ar"
+                ? "سيتم حفظ بيانات الإعلان أولًا، ثم رفع كل ملف مباشرة إلى Cloudinary. إنشاء الإعلان لا يتم إلغاؤه إذا فشل ملف، ويمكنك إعادة محاولة الملف وحده."
+                : "Listing metadata is saved first, then each file uploads directly to Cloudinary. A failed file does not roll back the listing and can be retried separately."}
             </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <FileInput disabled={Boolean(savedListing)} accept="image/jpeg,image/png,image/webp,image/gif" label={t.thumbnail} button={t.chooseImage} onChange={(event) => { chooseMedia("thumbnail", event.target.files); event.target.value = ""; }} />
+              <FileInput disabled={Boolean(savedListing)} accept="image/jpeg,image/png,image/webp,image/gif" label={t.galleryImages} button={t.chooseImages} onChange={(event) => { chooseMedia("gallery", event.target.files); event.target.value = ""; }} multiple />
+              <FileInput disabled={Boolean(savedListing)} accept="video/mp4,video/webm,video/quicktime,video/x-matroska" label={lang === "ar" ? "فيديو الإعلان" : "Listing video"} button={lang === "ar" ? "اختيار فيديو" : "Choose video"} onChange={(event) => { chooseMedia("video", event.target.files); event.target.value = ""; }} />
+            </div>
+
+            {(listing?.media?.length ?? 0) > 0 ? (
+              <div className="mt-5 grid gap-3">
+                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات الحالية على الخادم" : "Current server media"}</strong>
+                {listing?.media?.map((media) => (
+                  <div key={media.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{media.fileName}</strong><MediaBadge value={media.role} /><MediaBadge value={media.status} /></div>
+                      <small className="mt-1 block font-bold text-slate-500">{media.contentType}{media.bytes ? ` · ${mediaSize(media.bytes)}` : ""}{media.failureReason ? ` · ${media.failureReason}` : ""}</small>
+                    </div>
+                    <button disabled={deletingMediaId === media.id || mediaBusy} type="button" onClick={() => void removeExistingMedia(media)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 text-xs font-black text-rose-700 disabled:opacity-50">
+                      {deletingMediaId === media.id ? <FiLoader className="animate-spin" /> : <FiTrash2 />}{lang === "ar" ? "حذف الملف" : "Delete media"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {pendingMedia.length ? (
+              <div className="mt-5 grid gap-3">
+                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات المختارة وحالة الرفع" : "Selected files and upload status"}</strong>
+                {pendingMedia.map((item) => (
+                  <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status} /></div><small className="mt-1 block font-bold text-slate-500">{mediaContentType(item.file)} · {mediaSize(item.file.size)}</small></div>
+                      <div className="flex gap-2">
+                        {item.status === "failed" && savedListing ? <button disabled={mediaBusy || deletingMediaId === item.mediaId} type="button" onClick={() => void retryMedia(item)} className="h-10 rounded-xl bg-amber-100 px-4 text-xs font-black text-amber-900">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button> : null}
+                        {item.status === "selected" && !savedListing ? <button type="button" onClick={() => setPendingMedia((current) => current.filter((entry) => entry.key !== item.key))} className="h-10 rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-700">{lang === "ar" ? "إزالة" : "Remove"}</button> : null}
+                      </div>
+                    </div>
+                    {item.status !== "selected" ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all ${item.status === "failed" ? "bg-rose-500" : item.status === "ready" ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${item.status === "failed" ? Math.max(4, item.progress) : item.progress}%` }} /></div> : null}
+                    {item.error ? <p className="mt-2 text-xs font-black text-rose-700">{item.error}</p> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {savedListing ? (
+              <div className="mt-5 flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
+                <div><strong className="block text-sm font-black text-emerald-900">{lang === "ar" ? `تم حفظ الإعلان رقم ${savedListing.id}` : `Listing #${savedListing.id} is saved`}</strong><small className="mt-1 block font-bold text-emerald-700">{lang === "ar" ? "راجع نتائج الملفات بالأعلى؛ يمكنك إنهاء الخطوة حتى لو فشل أحدها." : "Review file results above; you can finish even if an individual upload failed."}</small></div>
+                <button disabled={mediaBusy} type="button" onClick={onFinished} className="h-11 rounded-full bg-emerald-700 px-5 text-sm font-black text-white disabled:opacity-50">{lang === "ar" ? "إنهاء والعودة للإعلانات" : "Finish and return"}</button>
+              </div>
+            ) : null}
           </FormSection>
 
           {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{error}</div> : null}
@@ -1257,6 +1402,17 @@ function SmallMetric({ label, value, hint }: { label: string; value: number | st
   );
 }
 
+function MediaBadge({ value }: { value: string }) {
+  const tone = value === "ready"
+    ? "bg-emerald-100 text-emerald-800"
+    : value === "failed"
+      ? "bg-rose-100 text-rose-800"
+      : value === "uploading" || value === "completing" || value === "ticket" || value === "processing"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-slate-100 text-slate-700";
+  return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}>{value}</span>;
+}
+
 function DataChip({ children }: { children: ReactNode }) {
   return (
     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
@@ -1370,15 +1526,15 @@ function Select({ label, value, onChange, children }: { label: string; value: st
   );
 }
 
-function FileInput({ label, button, multiple, onChange }: { label: string; button: string; multiple?: boolean; onChange: (event: ChangeEvent<HTMLInputElement>) => void }) {
+function FileInput({ label, button, multiple, accept = "image/*", disabled, onChange }: { label: string; button: string; multiple?: boolean; accept?: string; disabled?: boolean; onChange: (event: ChangeEvent<HTMLInputElement>) => void }) {
   return (
-    <label className="grid cursor-pointer gap-2 text-sm font-black text-slate-700">
+    <label className={`grid gap-2 text-sm font-black text-slate-700 ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
       {label}
       <span className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white text-slate-600 transition hover:border-amber-400 hover:bg-amber-50">
         <FiUploadCloud />
         {button}
       </span>
-      <input type="file" accept="image/*" multiple={multiple} onChange={onChange} className="sr-only" />
+      <input disabled={disabled} type="file" accept={accept} multiple={multiple} onChange={onChange} className="sr-only" />
     </label>
   );
 }

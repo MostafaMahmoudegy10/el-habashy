@@ -44,7 +44,6 @@ export type UpsertListingBody = {
   priceLabel: LocalizedText;
   measureLabel: string;
   featured: boolean;
-  images: string[];
   specs: Specification[];
   publishDate?: string;
   expireDate?: string;
@@ -59,15 +58,6 @@ export type UpsertListingBody = {
   seoTitle?: LocalizedText;
   seoDescription?: LocalizedText;
   seoKeywords?: LocalizedText;
-};
-
-export type UploadedImage = {
-  url: string;
-  publicId: string;
-  width: number;
-  height: number;
-  bytes: number;
-  format: string;
 };
 
 function queryString(query: ListingQuery = {}) {
@@ -111,12 +101,4 @@ export const adminContentApi = {
     code: ListingCategory,
     sector: Pick<Sector, "title" | "description">,
   ) => request<SectorResponse>(`/api/v1/admin/sectors/${code}`, { method: "PATCH", body: sector }),
-  uploadImages: (request: AuthorizedRequest, files: File[]) => {
-    const body = new FormData();
-    files.forEach((file) => body.append("files", file));
-    return request<{ images: UploadedImage[] }>("/api/v1/admin/media/images", {
-      method: "POST",
-      body,
-    });
-  },
 };

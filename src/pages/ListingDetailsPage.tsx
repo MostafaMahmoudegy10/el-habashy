@@ -37,6 +37,7 @@ function ListingDetailsContent({ selectedListing, loading, error }: { selectedLi
   const [imageIndex, setImageIndex] = useState(0);
   const favorite = Boolean(currentUser?.favorites?.includes(selectedListing.id));
   const locationUrl = selectedListing.mapUrl || settings.mapUrl;
+  const readyVideo = selectedListing.media?.find((media) => media.type === "video" && media.status === "ready" && media.url);
   const related = useMemo(
     () =>
       listings
@@ -85,6 +86,13 @@ function ListingDetailsContent({ selectedListing, loading, error }: { selectedLi
               </button>
             ))}
           </div>
+          {readyVideo?.url ? (
+            <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-2 shadow-xl shadow-slate-950/10">
+              <video controls preload="metadata" className="aspect-video w-full rounded-[1.5rem] bg-black" src={readyVideo.url}>
+                {lang === "ar" ? "المتصفح لا يدعم تشغيل الفيديو." : "Your browser does not support video playback."}
+              </video>
+            </div>
+          ) : null}
         </div>
 
         <aside className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/5">
