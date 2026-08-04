@@ -1,15 +1,15 @@
 import {
   createContext,
   PropsWithChildren,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
   initialAboutContent,
-  initialListings,
-  initialSectors,
   initialSettings,
   initialSubscribers,
 } from "../data/properties";
@@ -17,6 +17,13 @@ import { useAuth } from "./AuthContext";
 import { copy } from "../lib/i18n";
 import { initialServices } from "../data/services";
 import { sanitizeRichText } from "../lib/richText";
+import {
+  adminContentApi,
+  publicContentApi,
+  type ListingResponse,
+  type SectorResponse,
+  type UpsertListingBody,
+} from "../lib/contentApi";
 import type {
   AboutContent,
   AboutSection,
@@ -43,13 +50,22 @@ type AppContextValue = {
   dashboardView: DashboardView;
   mobileOpen: boolean;
   listings: Listing[];
+  listingsLoading: boolean;
+  listingsError: string;
+  adminListings: Listing[];
+  adminListingsLoading: boolean;
+  adminListingsError: string;
   subscribers: typeof initialSubscribers;
   settings: AppSettings;
   aboutContent: AboutContent;
   sectors: Sector[];
+  sectorsLoading: boolean;
+  sectorsError: string;
   services: ServiceArticle[];
   selectedService: ServiceArticle;
-  selectedListing: Listing;
+  selectedListing?: Listing;
+  listingDetailLoading: boolean;
+  listingDetailError: string;
   listingCategoryFilter: ListingCategory | "all";
   currentUser: ReturnType<typeof useAuth>["user"];
   toast: string;
@@ -66,12 +82,15 @@ type AppContextValue = {
   getWhatsAppUrl: (listing: Listing, phone?: string) => string;
   trackWhatsApp: (id: number) => void;
   toggleFavorite: (id: number) => void;
-  addListing: (draft: ListingDraft) => void;
-  updateListing: (id: number, draft: ListingDraft) => void;
-  deleteListing: (id: number) => void;
-  updateListingStatus: (id: number, status: ListingStatus) => void;
+  reloadContent: () => Promise<void>;
+  reloadAdminListings: () => Promise<void>;
+  addListing: (draft: ListingDraft) => Promise<Listing>;
+  updateListing: (id: number, draft: ListingDraft) => Promise<Listing>;
+  deleteListing: (id: number) => Promise<void>;
+  updateListingStatus: (id: number, status: ListingStatus) => Promise<Listing>;
+  uploadListingImages: (files: File[]) => Promise<string[]>;
   updateSettings: (settings: AppSettings) => void;
-  updateSector: (id: ListingCategory, sector: Omit<Sector, "id">) => void;
+  updateSector: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
   addWorkCategory: (category: Omit<WorkCategory, "id">) => void;
   updateWorkCategory: (id: number, category: Omit<WorkCategory, "id">) => void;
   deleteWorkCategory: (id: number) => void;
@@ -92,10 +111,8 @@ const AppContext = createContext<AppContextValue | null>(null);
 const fallbackImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
 const storageKeys = {
-  listings: "elhabashy:listings",
   settings: "elhabashy:settings",
   aboutContent: "elhabashy:about-content",
-  sectors: "elhabashy:sectors",
   services: "elhabashy:services",
 };
 
@@ -105,12 +122,11 @@ function serviceFromDraft(draft: ServiceDraft, id: number, current?: ServiceArti
   return {
     id,
     kind: draft.kind,
-    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr, fr: draft.titleEn || draft.titleAr },
-    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr, fr: draft.summaryEn || draft.summaryAr },
+    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
+    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr },
     content: {
       ar: sanitizeRichText(draft.contentAr),
       en: sanitizeRichText(draft.contentEn || draft.contentAr),
-      fr: sanitizeRichText(draft.contentEn || draft.contentAr),
     },
     image: draft.image || current?.image || "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=85",
     gallery: draft.gallery || current?.gallery || [],
@@ -139,8 +155,7 @@ function slugify(value: string) {
 function normalizeText(value?: Partial<LocalizedText>): LocalizedText {
   const ar = value?.ar ?? "";
   const en = value?.en || ar;
-  const fr = value?.fr || en || ar;
-  return { ar, en, fr };
+  return { ar, en };
 }
 
 function normalizeService(service: ServiceArticle): ServiceArticle {
@@ -160,7 +175,6 @@ function normalizeCategory(value: string): ListingCategory {
 }
 
 function normalizeListing(listing: Listing): Listing {
-  const seed = initialListings.find((item) => item.id === listing.id);
   return {
     ...listing,
     category: normalizeCategory(String((listing as { category?: string }).category ?? "other")),
@@ -170,19 +184,16 @@ function normalizeListing(listing: Listing): Listing {
     city: normalizeText(listing.city),
     location: normalizeText(listing.location),
     priceLabel: normalizeText(listing.priceLabel),
-    specs: listing.specs.map((spec) => ({
+    images: Array.isArray(listing.images) && listing.images.length ? listing.images : [fallbackImage],
+    specs: (Array.isArray(listing.specs) ? listing.specs : []).map((spec) => ({
       label: normalizeText(spec.label),
       value: normalizeText(spec.value),
     })),
-    publishDate: listing.publishDate || seed?.publishDate,
-    expireDate: listing.expireDate || seed?.expireDate,
-    auctionDate: listing.auctionDate || seed?.auctionDate,
-    auctionTime: listing.auctionTime || seed?.auctionTime,
-    beneficiary: listing.beneficiary ? normalizeText(listing.beneficiary) : seed?.beneficiary ? normalizeText(seed.beneficiary) : undefined,
-    venue: listing.venue ? normalizeText(listing.venue) : seed?.venue ? normalizeText(seed.venue) : undefined,
-    announcementSource: listing.announcementSource ? normalizeText(listing.announcementSource) : seed?.announcementSource ? normalizeText(seed.announcementSource) : undefined,
-    notes: listing.notes ? normalizeText(listing.notes) : seed?.notes ? normalizeText(seed.notes) : undefined,
-    mapUrl: listing.mapUrl || seed?.mapUrl || "",
+    beneficiary: listing.beneficiary ? normalizeText(listing.beneficiary) : undefined,
+    venue: listing.venue ? normalizeText(listing.venue) : undefined,
+    announcementSource: listing.announcementSource ? normalizeText(listing.announcementSource) : undefined,
+    notes: listing.notes ? normalizeText(listing.notes) : undefined,
+    mapUrl: listing.mapUrl || "",
     whatsappClicks: listing.whatsappClicks ?? 0,
     seoTitle: listing.seoTitle ? normalizeText(listing.seoTitle) : undefined,
     seoDescription: listing.seoDescription ? normalizeText(listing.seoDescription) : undefined,
@@ -192,9 +203,11 @@ function normalizeListing(listing: Listing): Listing {
 
 function normalizeSettings(settings: Partial<AppSettings>): AppSettings {
   return {
-    ...initialSettings,
-    ...settings,
-    whatsappMessageFr: settings.whatsappMessageFr || settings.whatsappMessageEn || initialSettings.whatsappMessageFr,
+    whatsappNumber: settings.whatsappNumber ?? initialSettings.whatsappNumber,
+    whatsappMessageAr: settings.whatsappMessageAr ?? initialSettings.whatsappMessageAr,
+    whatsappMessageEn: settings.whatsappMessageEn ?? initialSettings.whatsappMessageEn,
+    contactPhone: settings.contactPhone ?? initialSettings.contactPhone,
+    contactEmail: settings.contactEmail ?? initialSettings.contactEmail,
     officeAddress: normalizeText(settings.officeAddress ?? initialSettings.officeAddress),
     mapUrl: settings.mapUrl ?? initialSettings.mapUrl,
     facebookUrl: settings.facebookUrl || initialSettings.facebookUrl,
@@ -242,12 +255,34 @@ function normalizeSector(sector: Sector): Sector {
 }
 
 function normalizeSectors(sectors: Sector[]): Sector[] {
-  const storedById = new Map(
-    sectors
-      .filter((sector) => categoryIds.includes((sector as { id?: string }).id as ListingCategory))
-      .map((sector) => [sector.id, normalizeSector(sector)]),
-  );
-  return initialSectors.map((sector) => storedById.get(sector.id) ?? normalizeSector(sector));
+  return sectors
+    .filter((sector) => categoryIds.includes((sector as { id?: string }).id as ListingCategory))
+    .map(normalizeSector)
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
+
+function listingFromResponse(response: ListingResponse): Listing {
+  return normalizeListing({
+    ...response,
+    category: normalizeCategory(response.category),
+  });
+}
+
+function sectorFromResponse(response: SectorResponse): Sector | null {
+  if (!categoryIds.includes(response.code as ListingCategory)) return null;
+  return normalizeSector({
+    id: response.code as ListingCategory,
+    title: response.title,
+    description: response.description,
+    displayOrder: response.displayOrder,
+    updatedAt: response.updatedAt,
+  });
+}
+
+function optionalText(ar: string, en: string): LocalizedText | undefined {
+  const primary = ar.trim() || en.trim();
+  if (!primary) return undefined;
+  return { ar: ar.trim() || primary, en: en.trim() || primary };
 }
 
 function draftToListing(draft: ListingDraft, id: number, current?: Listing): Listing {
@@ -255,49 +290,82 @@ function draftToListing(draft: ListingDraft, id: number, current?: Listing): Lis
   return {
     id,
     slug: slugify(draft.seoSlug || draft.titleEn || draft.titleAr || current?.slug || `listing-${id}`),
-    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr, fr: draft.titleFr || draft.titleEn || draft.titleAr },
-    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr, fr: draft.summaryFr || draft.summaryEn || draft.summaryAr },
+    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
+    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr },
     description: {
       ar: sanitizeRichText(draft.descriptionAr),
       en: sanitizeRichText(draft.descriptionEn || draft.descriptionAr),
-      fr: sanitizeRichText(draft.descriptionFr || draft.descriptionEn || draft.descriptionAr),
     },
     category: draft.category,
     status: draft.status,
-    city: { ar: draft.cityAr, en: draft.cityEn || draft.cityAr, fr: draft.cityFr || draft.cityEn || draft.cityAr },
-    location: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr, fr: draft.locationFr || draft.locationEn || draft.locationAr },
-    priceLabel: { ar: draft.priceLabelAr, en: draft.priceLabelEn || draft.priceLabelAr, fr: draft.priceLabelFr || draft.priceLabelEn || draft.priceLabelAr },
+    city: { ar: draft.cityAr, en: draft.cityEn || draft.cityAr },
+    location: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr },
+    priceLabel: { ar: draft.priceLabelAr, en: draft.priceLabelEn || draft.priceLabelAr },
     measureLabel: draft.measureLabel,
     featured: draft.featured,
     images: images.length ? images : current?.images ?? [fallbackImage],
     specs: current?.specs ?? [
-      { label: { ar: "القسم", en: "Category", fr: "Categorie" }, value: { ar: draft.category, en: draft.category, fr: draft.category } },
+      { label: { ar: "القسم", en: "Category" }, value: { ar: draft.category, en: draft.category } },
       {
-        label: { ar: "الموقع", en: "Location", fr: "Emplacement" },
-        value: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr, fr: draft.locationFr || draft.locationEn || draft.locationAr },
+        label: { ar: "الموقع", en: "Location" },
+        value: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr },
       },
-      { label: { ar: "الكمية", en: "Quantity", fr: "Quantite" }, value: { ar: draft.measureLabel, en: draft.measureLabel, fr: draft.measureLabel } },
+      { label: { ar: "الكمية", en: "Quantity" }, value: { ar: draft.measureLabel, en: draft.measureLabel } },
     ],
     createdAt: current?.createdAt ?? new Date().toISOString().slice(0, 10),
     publishDate: draft.publishDate,
     expireDate: draft.expireDate,
     auctionDate: draft.auctionDate,
     auctionTime: draft.auctionTime,
-    beneficiary: { ar: draft.beneficiaryAr, en: draft.beneficiaryEn || draft.beneficiaryAr, fr: draft.beneficiaryFr || draft.beneficiaryEn || draft.beneficiaryAr },
-    venue: { ar: draft.venueAr, en: draft.venueEn || draft.venueAr, fr: draft.venueFr || draft.venueEn || draft.venueAr },
+    beneficiary: { ar: draft.beneficiaryAr, en: draft.beneficiaryEn || draft.beneficiaryAr },
+    venue: { ar: draft.venueAr, en: draft.venueEn || draft.venueAr },
     announcementSource: {
       ar: draft.announcementSourceAr,
       en: draft.announcementSourceEn || draft.announcementSourceAr,
-      fr: draft.announcementSourceFr || draft.announcementSourceEn || draft.announcementSourceAr,
     },
-    notes: { ar: draft.notesAr, en: draft.notesEn || draft.notesAr, fr: draft.notesFr || draft.notesEn || draft.notesAr },
+    notes: { ar: draft.notesAr, en: draft.notesEn || draft.notesAr },
     mapUrl: draft.mapUrl,
     whatsappPhone: draft.whatsappPhone,
     views: current?.views ?? 0,
     whatsappClicks: current?.whatsappClicks ?? 0,
-    seoTitle: { ar: draft.seoTitleAr, en: draft.seoTitleEn, fr: draft.seoTitleFr || draft.seoTitleEn },
-    seoDescription: { ar: draft.seoDescriptionAr, en: draft.seoDescriptionEn, fr: draft.seoDescriptionFr || draft.seoDescriptionEn },
-    seoKeywords: { ar: draft.seoKeywordsAr, en: draft.seoKeywordsEn, fr: draft.seoKeywordsFr || draft.seoKeywordsEn },
+    seoTitle: { ar: draft.seoTitleAr, en: draft.seoTitleEn },
+    seoDescription: { ar: draft.seoDescriptionAr, en: draft.seoDescriptionEn },
+    seoKeywords: { ar: draft.seoKeywordsAr, en: draft.seoKeywordsEn },
+  };
+}
+
+function draftToRequest(draft: ListingDraft, current?: Listing): UpsertListingBody {
+  const listing = draftToListing(draft, current?.id ?? 0, current);
+  const images = [draft.thumbnail, ...draft.gallery].filter(Boolean);
+  if (!images.length) throw new Error("اختر صورة واحدة على الأقل قبل حفظ الإعلان.");
+
+  return {
+    slug: listing.slug,
+    title: listing.title,
+    summary: listing.summary,
+    description: listing.description,
+    category: listing.category,
+    status: listing.status,
+    city: listing.city,
+    location: listing.location,
+    priceLabel: listing.priceLabel,
+    measureLabel: listing.measureLabel,
+    featured: listing.featured,
+    images,
+    specs: listing.specs,
+    publishDate: listing.publishDate || undefined,
+    expireDate: listing.expireDate || undefined,
+    auctionDate: listing.auctionDate || undefined,
+    auctionTime: listing.auctionTime || undefined,
+    beneficiary: optionalText(draft.beneficiaryAr, draft.beneficiaryEn),
+    venue: optionalText(draft.venueAr, draft.venueEn),
+    announcementSource: optionalText(draft.announcementSourceAr, draft.announcementSourceEn),
+    notes: optionalText(draft.notesAr, draft.notesEn),
+    mapUrl: draft.mapUrl.trim() || undefined,
+    whatsappPhone: draft.whatsappPhone.trim() || undefined,
+    seoTitle: optionalText(draft.seoTitleAr, draft.seoTitleEn),
+    seoDescription: optionalText(draft.seoDescriptionAr, draft.seoDescriptionEn),
+    seoKeywords: optionalText(draft.seoKeywordsAr, draft.seoKeywordsEn),
   };
 }
 
@@ -305,90 +373,146 @@ export function listingToDraft(listing?: Listing): ListingDraft {
   return {
     titleAr: listing?.title.ar ?? "",
     titleEn: listing?.title.en ?? "",
-    titleFr: listing?.title.fr ?? "",
     category: listing?.category ?? "real-estate",
     status: listing?.status ?? "active",
     thumbnail: listing?.images[0] ?? "",
     gallery: listing?.images.slice(1) ?? [],
     descriptionAr: listing?.description.ar ?? "",
     descriptionEn: listing?.description.en ?? "",
-    descriptionFr: listing?.description.fr ?? "",
     summaryAr: listing?.summary.ar ?? "",
     summaryEn: listing?.summary.en ?? "",
-    summaryFr: listing?.summary.fr ?? "",
     locationAr: listing?.location.ar ?? "",
     locationEn: listing?.location.en ?? "",
-    locationFr: listing?.location.fr ?? "",
     cityAr: listing?.city.ar ?? "",
     cityEn: listing?.city.en ?? "",
-    cityFr: listing?.city.fr ?? "",
     priceLabelAr: listing?.priceLabel.ar ?? "",
     priceLabelEn: listing?.priceLabel.en ?? "",
-    priceLabelFr: listing?.priceLabel.fr ?? "",
     measureLabel: listing?.measureLabel ?? "",
     publishDate: listing?.publishDate ?? "",
     expireDate: listing?.expireDate ?? "",
     auctionDate: listing?.auctionDate ?? "",
-    auctionTime: listing?.auctionTime ?? "",
+    auctionTime: listing?.auctionTime?.slice(0, 5) ?? "",
     beneficiaryAr: listing?.beneficiary?.ar ?? "",
     beneficiaryEn: listing?.beneficiary?.en ?? "",
-    beneficiaryFr: listing?.beneficiary?.fr ?? "",
     venueAr: listing?.venue?.ar ?? "",
     venueEn: listing?.venue?.en ?? "",
-    venueFr: listing?.venue?.fr ?? "",
     announcementSourceAr: listing?.announcementSource?.ar ?? "",
     announcementSourceEn: listing?.announcementSource?.en ?? "",
-    announcementSourceFr: listing?.announcementSource?.fr ?? "",
     notesAr: listing?.notes?.ar ?? "",
     notesEn: listing?.notes?.en ?? "",
-    notesFr: listing?.notes?.fr ?? "",
     mapUrl: listing?.mapUrl ?? "",
     whatsappPhone: listing?.whatsappPhone ?? "",
     seoTitleAr: listing?.seoTitle?.ar ?? "",
     seoTitleEn: listing?.seoTitle?.en ?? "",
-    seoTitleFr: listing?.seoTitle?.fr ?? "",
     seoDescriptionAr: listing?.seoDescription?.ar ?? "",
     seoDescriptionEn: listing?.seoDescription?.en ?? "",
-    seoDescriptionFr: listing?.seoDescription?.fr ?? "",
     seoKeywordsAr: listing?.seoKeywords?.ar ?? "",
     seoKeywordsEn: listing?.seoKeywords?.en ?? "",
-    seoKeywordsFr: listing?.seoKeywords?.fr ?? "",
     seoSlug: listing?.slug ?? "",
     featured: listing?.featured ?? false,
   };
 }
 
 export function AppProvider({ children }: PropsWithChildren) {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, authorizedRequest } = useAuth();
   const [lang, setLang] = useState<Language>("ar");
   const [page, setPage] = useState<Page>("home");
   const [aboutSection, setAboutSection] = useState<AboutSection>("profile");
   const [dashboardView, setDashboardView] = useState<DashboardView>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [listings, setListings] = useState<Listing[]>(() =>
-    readStored<Listing[]>(storageKeys.listings, initialListings).map(normalizeListing),
-  );
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState("");
+  const [adminListings, setAdminListings] = useState<Listing[]>([]);
+  const [adminListingsLoading, setAdminListingsLoading] = useState(false);
+  const [adminListingsError, setAdminListingsError] = useState("");
   const [settings, setSettings] = useState<AppSettings>(() =>
     normalizeSettings(readStored<Partial<AppSettings>>(storageKeys.settings, initialSettings)),
   );
   const [aboutContent, setAboutContent] = useState<AboutContent>(() =>
     normalizeAboutContent(readStored(storageKeys.aboutContent, initialAboutContent)),
   );
-  const [sectors, setSectors] = useState<Sector[]>(() =>
-    normalizeSectors(readStored(storageKeys.sectors, initialSectors)),
-  );
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [sectorsLoading, setSectorsLoading] = useState(true);
+  const [sectorsError, setSectorsError] = useState("");
   const [services, setServices] = useState<ServiceArticle[]>(() => {
     const stored = readStored<ServiceArticle[]>(storageKeys.services, []);
     return [...stored, ...initialServices.filter((seed) => !stored.some((item) => item.id === seed.id))].map(normalizeService);
   });
   const [selectedServiceId, setSelectedServiceId] = useState(initialServices[0].id);
-  const [selectedListingId, setSelectedListingId] = useState(initialListings[0].id);
+  const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
+  const [selectedListingDetail, setSelectedListingDetail] = useState<Listing | undefined>();
+  const [listingDetailLoading, setListingDetailLoading] = useState(false);
+  const [listingDetailError, setListingDetailError] = useState("");
+  const listingDetailRequest = useRef(0);
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory | "all">("all");
   const [toast, setToast] = useState("");
 
   const t = copy[lang];
-  const selectedListing = listings.find((listing) => listing.id === selectedListingId) ?? listings[0];
+  const selectedListing =
+    [...adminListings, ...listings].find((listing) => listing.id === selectedListingId)
+    ?? (selectedListingDetail?.id === selectedListingId ? selectedListingDetail : undefined)
+    ?? listings[0];
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? services[0];
+
+  const loadPublicListings = useCallback(async () => {
+    setListingsLoading(true);
+    setListingsError("");
+    try {
+      const first = await publicContentApi.listings({ page: 0, size: 100, sort: "createdAt,desc" });
+      const remaining = first.totalPages > 1
+        ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
+            publicContentApi.listings({ page: index + 1, size: 100, sort: "createdAt,desc" })))
+        : [];
+      setListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
+    } catch (error) {
+      setListingsError(error instanceof Error ? error.message : "تعذر تحميل الإعلانات.");
+    } finally {
+      setListingsLoading(false);
+    }
+  }, []);
+
+  const loadSectors = useCallback(async () => {
+    setSectorsLoading(true);
+    setSectorsError("");
+    try {
+      const response = await publicContentApi.sectors();
+      setSectors(normalizeSectors(response.map(sectorFromResponse).filter((sector): sector is Sector => sector !== null)));
+    } catch (error) {
+      setSectorsError(error instanceof Error ? error.message : "تعذر تحميل القطاعات.");
+    } finally {
+      setSectorsLoading(false);
+    }
+  }, []);
+
+  const reloadContent = useCallback(async () => {
+    await Promise.all([loadPublicListings(), loadSectors()]);
+  }, [loadPublicListings, loadSectors]);
+
+  const reloadAdminListings = useCallback(async () => {
+    if (currentUser?.role !== "ADMIN") {
+      setAdminListings([]);
+      return;
+    }
+    setAdminListingsLoading(true);
+    setAdminListingsError("");
+    try {
+      const first = await adminContentApi.listings(authorizedRequest, {
+        page: 0,
+        size: 100,
+        sort: "createdAt,desc",
+      });
+      const remaining = first.totalPages > 1
+        ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
+            adminContentApi.listings(authorizedRequest, { page: index + 1, size: 100, sort: "createdAt,desc" })))
+        : [];
+      setAdminListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
+    } catch (error) {
+      setAdminListingsError(error instanceof Error ? error.message : "تعذر تحميل إعلانات لوحة التحكم.");
+    } finally {
+      setAdminListingsLoading(false);
+    }
+  }, [authorizedRequest, currentUser?.role]);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -402,8 +526,17 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [toast]);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKeys.listings, JSON.stringify(listings));
-  }, [listings]);
+    window.localStorage.removeItem("elhabashy:listings");
+    window.localStorage.removeItem("elhabashy:sectors");
+  }, []);
+
+  useEffect(() => {
+    void reloadContent();
+  }, [reloadContent]);
+
+  useEffect(() => {
+    void reloadAdminListings();
+  }, [reloadAdminListings]);
 
   useEffect(() => {
     window.localStorage.setItem(storageKeys.settings, JSON.stringify(settings));
@@ -412,10 +545,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     window.localStorage.setItem(storageKeys.aboutContent, JSON.stringify(aboutContent));
   }, [aboutContent]);
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKeys.sectors, JSON.stringify(sectors));
-  }, [sectors]);
 
   useEffect(() => {
     window.localStorage.setItem(storageKeys.services, JSON.stringify(services));
@@ -429,13 +558,22 @@ export function AppProvider({ children }: PropsWithChildren) {
       dashboardView,
       mobileOpen,
       listings,
+      listingsLoading,
+      listingsError,
+      adminListings,
+      adminListingsLoading,
+      adminListingsError,
       subscribers: initialSubscribers,
       settings,
       aboutContent,
       sectors,
+      sectorsLoading,
+      sectorsError,
       services,
       selectedService,
       selectedListing,
+      listingDetailLoading,
+      listingDetailError,
       listingCategoryFilter,
       currentUser,
       toast,
@@ -464,23 +602,41 @@ export function AppProvider({ children }: PropsWithChildren) {
       },
       setMobileOpen,
       selectListing(id) {
+        const requestId = ++listingDetailRequest.current;
+        const publicListing = listings.find((listing) => listing.id === id);
+        const candidate = publicListing ?? adminListings.find((listing) => listing.id === id);
         setSelectedListingId(id);
-        setListings((current) =>
-          current.map((listing) => (listing.id === id ? { ...listing, views: listing.views + 1 } : listing)),
-        );
+        setSelectedListingDetail(candidate);
+        setListingDetailError("");
         setPage("details");
         setMobileOpen(false);
+
+        if (publicListing) {
+          setListingDetailLoading(true);
+          void publicContentApi.listing(publicListing.slug)
+            .then((response) => {
+              if (listingDetailRequest.current !== requestId) return;
+              const detail = listingFromResponse(response);
+              setSelectedListingDetail(detail);
+              setListings((current) => current.map((listing) => listing.id === detail.id ? detail : listing));
+            })
+            .catch((error) => {
+              if (listingDetailRequest.current === requestId) {
+                setListingDetailError(error instanceof Error ? error.message : "تعذر تحميل تفاصيل الإعلان.");
+              }
+            })
+            .finally(() => {
+              if (listingDetailRequest.current === requestId) setListingDetailLoading(false);
+            });
+        } else {
+          setListingDetailLoading(false);
+        }
       },
       getWhatsAppUrl(listing, phone = settings.whatsappNumber) {
         const targetPhone = listing.whatsappPhone || phone || settings.whatsappNumber;
         const title = listing.title[lang] || listing.title.ar || listing.title.en;
         const sectorTitle = sectors.find((sector) => sector.id === listing.category)?.title[lang] || listing.category;
-        const template =
-          lang === "ar"
-            ? settings.whatsappMessageAr
-            : lang === "fr"
-              ? settings.whatsappMessageFr
-              : settings.whatsappMessageEn;
+        const template = lang === "ar" ? settings.whatsappMessageAr : settings.whatsappMessageEn;
         const routedMessage = (template || "{title}")
           .replace(/\{title\}/g, title)
           .replace(/\{category\}/g, sectorTitle)
@@ -502,35 +658,58 @@ export function AppProvider({ children }: PropsWithChildren) {
         }
         setToast(lang === "ar" ? "سيتم توفير المفضلة قريبًا." : "Favorites will be available soon.");
       },
-      addListing(draft) {
-        const nextId = Math.max(0, ...listings.map((listing) => listing.id)) + 1;
-        const nextListing = draftToListing(draft, nextId);
-        setListings((current) => [nextListing, ...current]);
-        setSelectedListingId(nextId);
+      reloadContent,
+      reloadAdminListings,
+      async addListing(draft) {
+        const response = await adminContentApi.createListing(authorizedRequest, draftToRequest(draft));
+        const nextListing = listingFromResponse(response);
+        setAdminListings((current) => [nextListing, ...current.filter((listing) => listing.id !== nextListing.id)]);
+        setSelectedListingId(nextListing.id);
+        await loadPublicListings();
+        setToast(t.success);
+        return nextListing;
+      },
+      async updateListing(id, draft) {
+        const current = adminListings.find((listing) => listing.id === id) ?? listings.find((listing) => listing.id === id);
+        const response = await adminContentApi.updateListing(authorizedRequest, id, draftToRequest(draft, current));
+        const updated = listingFromResponse(response);
+        setAdminListings((items) => items.map((listing) => listing.id === id ? updated : listing));
+        setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
+        await loadPublicListings();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteListing(id) {
+        await adminContentApi.deleteListing(authorizedRequest, id);
+        setAdminListings((current) => current.filter((listing) => listing.id !== id));
+        setSelectedListingDetail((detail) => detail?.id === id ? undefined : detail);
+        await loadPublicListings();
         setToast(t.success);
       },
-      updateListing(id, draft) {
-        setListings((current) =>
-          current.map((listing) => (listing.id === id ? draftToListing(draft, id, listing) : listing)),
-        );
+      async updateListingStatus(id, status) {
+        const response = await adminContentApi.updateListingStatus(authorizedRequest, id, status);
+        const updated = listingFromResponse(response);
+        setAdminListings((current) => current.map((listing) => listing.id === id ? updated : listing));
+        setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
+        await loadPublicListings();
         setToast(t.success);
+        return updated;
       },
-      deleteListing(id) {
-        setListings((current) => current.filter((listing) => listing.id !== id));
-        setToast(t.success);
-      },
-      updateListingStatus(id, status) {
-        setListings((current) => current.map((listing) => (listing.id === id ? { ...listing, status } : listing)));
+      async uploadListingImages(files) {
+        const response = await adminContentApi.uploadImages(authorizedRequest, files);
+        return response.images.map((image) => image.url);
       },
       updateSettings(nextSettings) {
         setSettings(normalizeSettings(nextSettings));
         setToast(t.settingsSaved);
       },
-      updateSector(id, sector) {
-        setSectors((current) =>
-          normalizeSectors(current.map((item) => (item.id === id ? { id, ...sector } : item))),
-        );
+      async updateSector(id, sector) {
+        const response = await adminContentApi.updateSector(authorizedRequest, id, sector);
+        const updated = sectorFromResponse(response);
+        if (!updated) throw new Error("القطاع الذي أعاده الخادم غير معروف.");
+        setSectors((current) => normalizeSectors(current.map((item) => (item.id === id ? updated : item))));
         setToast(t.success);
+        return updated;
       },
       addWorkCategory(category) {
         const nextId = Math.max(0, ...aboutContent.workCategories.map((item) => item.id)) + 1;
@@ -609,18 +788,31 @@ export function AppProvider({ children }: PropsWithChildren) {
       setToast,
     }),
     [
+      adminListings,
+      adminListingsError,
+      adminListingsLoading,
+      authorizedRequest,
       currentUser,
       aboutContent,
       aboutSection,
       dashboardView,
       lang,
       listingCategoryFilter,
+      listingDetailError,
+      listingDetailLoading,
       listings,
+      listingsError,
+      listingsLoading,
+      loadPublicListings,
       mobileOpen,
       page,
+      reloadAdminListings,
+      reloadContent,
       selectedListing,
       settings,
       sectors,
+      sectorsError,
+      sectorsLoading,
       services,
       selectedService,
       t,

@@ -40,9 +40,7 @@ export function AboutPage() {
             <h1 className="mt-6 max-w-4xl text-4xl font-black leading-tight md:text-6xl">
               {lang === "ar"
                 ? "نبذة عنا منظمة بنفس روح الموقع الأصلي، لكن قابلة للإدارة."
-                : lang === "fr"
-                  ? "Un profil d'entreprise structure, inspire du site original et facile a gerer."
-                  : "A structured company profile, inspired by the original site and ready to manage."}
+                : "A structured company profile, inspired by the original site and ready to manage."}
             </h1>
             <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-slate-200 md:text-lg">
               {aboutContent.profile[lang]}
@@ -157,9 +155,7 @@ function ProfileSection() {
               <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">
                 {lang === "ar"
                   ? "خبرة عملية في إدارة بيانات الأصول وتجهيز مسارات تواصل واضحة للعملاء."
-                  : lang === "fr"
-                    ? "Une experience pratique dans l'organisation des actifs et des parcours de contact."
-                    : "Practical experience in organizing asset data and clear customer contact paths."}
+                  : "Practical experience in organizing asset data and clear customer contact paths."}
               </p>
             </article>
           );

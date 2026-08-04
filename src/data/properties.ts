@@ -4,13 +4,11 @@ export const initialSettings: AppSettings = {
   whatsappNumber: "201000000000",
   whatsappMessageAr: "أهلا، أحتاج تفاصيل المزاد الخاصة بـ {title}",
   whatsappMessageEn: "Hello, I need the auction details for {title}",
-  whatsappMessageFr: "Bonjour, je souhaite recevoir les details de l'enchere {title}",
   contactPhone: "25789288 - 202 / 25780424 -202 / 25780425 -202",
   contactEmail: "info@elhabashy.com",
   officeAddress: {
     ar: "22 ش محمود بسيوني - قصر النيل - القاهرة",
     en: "22 Mahmoud Bassiouny St. - Kasr El Nil - Cairo",
-    fr: "22 rue Mahmoud Bassiouny - Kasr El Nil - Le Caire",
   },
   mapUrl: "https://maps.google.com/?q=22%20Mahmoud%20Bassiouny%20St%20Kasr%20El%20Nil%20Cairo",
   facebookUrl: "https://www.facebook.com/elhabashy.auctionappraisal/",
@@ -20,56 +18,50 @@ export const initialSettings: AppSettings = {
 export const initialSectors: Sector[] = [
   {
     id: "real-estate",
-    title: { ar: "العقارات", en: "Real Estate", fr: "Immobilier" },
+    title: { ar: "العقارات", en: "Real Estate" },
     description: {
       ar: "أراضي، وحدات، فيلات، ومبان جاهزة للمعاينة والتواصل.",
       en: "Land, units, villas, and buildings prepared for viewing and contact.",
-      fr: "Terrains, unites, villas et batiments prets pour visite et contact.",
     },
   },
   {
     id: "movables",
-    title: { ar: "العدد والمنقولات", en: "Movables", fr: "Biens mobiliers" },
+    title: { ar: "العدد والمنقولات", en: "Movables" },
     description: {
       ar: "معدات، مخزون، أجهزة، ومنقولات تشغيلية قابلة للفحص.",
       en: "Equipment, inventory, devices, and operational movables ready for inspection.",
-      fr: "Equipements, stocks, appareils et biens mobiliers disponibles pour inspection.",
     },
   },
   {
     id: "cars",
-    title: { ar: "السيارات", en: "Cars", fr: "Voitures" },
+    title: { ar: "السيارات", en: "Cars" },
     description: {
       ar: "سيارات ملاكي، نقل، وأساطيل شركات مع بيانات واضحة.",
       en: "Passenger cars, transport vehicles, and company fleets with clear data.",
-      fr: "Voitures, vehicules de transport et flottes avec donnees claires.",
     },
   },
   {
     id: "antiques",
-    title: { ar: "التحف والأنتيكات", en: "Antiques", fr: "Antiquites" },
+    title: { ar: "التحف والأنتيكات", en: "Antiques" },
     description: {
       ar: "قطع فنية، ديكور، مقتنيات، ومجموعات كلاسيكية.",
       en: "Art pieces, decor, collectibles, and classic collections.",
-      fr: "Objets d'art, decoration, collections et pieces classiques.",
     },
   },
   {
     id: "scrap",
-    title: { ar: "المخلفات والسكراب", en: "Scrap", fr: "Lots industriels" },
+    title: { ar: "المخلفات والسكراب", en: "Scrap" },
     description: {
       ar: "مخلفات تشغيل، خردة، وسكراب صناعي حسب الوزن والمعاينة.",
       en: "Operational leftovers, scrap, and industrial lots by weight and inspection.",
-      fr: "Lots industriels, rebuts et ferraille selon poids et inspection.",
     },
   },
   {
     id: "other",
-    title: { ar: "أخرى", en: "Other", fr: "Autre" },
+    title: { ar: "أخرى", en: "Other" },
     description: {
       ar: "أي عروض أو أصول لا تدخل تحت القطاعات الأساسية.",
       en: "Any listings or assets outside the main sectors.",
-      fr: "Toute offre ou actif hors des secteurs principaux.",
     },
   },
 ];
@@ -125,27 +117,26 @@ export const initialAboutContent: AboutContent = {
   certificates: [
     {
       id: 1,
-      title: { ar: "تقدير التعاون والخبرة المهنية", en: "Professional Expertise Recognition", fr: "Reconnaissance de l'expertise professionnelle" },
+      title: { ar: "تقدير التعاون والخبرة المهنية", en: "Professional Expertise Recognition" },
       date: "2015",
       description: {
         ar: "تقدير لمسيرة مهنية ممتدة في أعمال الخبرة والتثمين وإدارة المزادات وخدمة المؤسسات والجهات المختلفة.",
         en: "Recognition of a long professional track record in valuation, auctions and institutional services.",
-        fr: "Reconnaissance d'une longue expérience dans l'évaluation et les ventes aux enchères.",
       },
       image: "https://images.unsplash.com/photo-1589330694653-ded6df03f754?auto=format&fit=crop&w=1200&q=85",
     },
     {
       id: 2,
-      title: { ar: "شهادة تقدير للأداء المؤسسي", en: "Institutional Performance Recognition", fr: "Reconnaissance de la performance institutionnelle" },
+      title: { ar: "شهادة تقدير للأداء المؤسسي", en: "Institutional Performance Recognition" },
       date: "2018",
-      description: { ar: "تقدير للالتزام بالمعايير المهنية والدقة في إعداد تقارير التقييم والخبرة الفنية.", en: "Recognition for professional standards and accuracy in technical valuation reports.", fr: "Reconnaissance du respect des normes professionnelles." },
+      description: { ar: "تقدير للالتزام بالمعايير المهنية والدقة في إعداد تقارير التقييم والخبرة الفنية.", en: "Recognition for professional standards and accuracy in technical valuation reports." },
       image: "https://images.unsplash.com/photo-1565688527174-775059ac429c?auto=format&fit=crop&w=1200&q=85",
     },
     {
       id: 3,
-      title: { ar: "تكريم سنوات الخبرة والعطاء", en: "Years of Experience Recognition", fr: "Reconnaissance des années d'expérience" },
+      title: { ar: "تكريم سنوات الخبرة والعطاء", en: "Years of Experience Recognition" },
       date: "2022",
-      description: { ar: "تكريم للخبرة المتراكمة والمساهمة في تطوير خدمات التثمين والتحكيم والاستشارات.", en: "Recognition of accumulated expertise in valuation, arbitration and consulting.", fr: "Hommage à l'expérience en évaluation, arbitrage et conseil." },
+      description: { ar: "تكريم للخبرة المتراكمة والمساهمة في تطوير خدمات التثمين والتحكيم والاستشارات.", en: "Recognition of accumulated expertise in valuation, arbitration and consulting." },
       image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
     },
   ],

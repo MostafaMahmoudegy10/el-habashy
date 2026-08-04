@@ -32,7 +32,8 @@ type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown; token?: stri
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData) headers.set("Content-Type", "application/json");
   if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
 
   let response: Response;
@@ -41,7 +42,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       ...options,
       headers,
       credentials: "include",
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.body === undefined
+        ? undefined
+        : isFormData
+          ? options.body as FormData
+          : JSON.stringify(options.body),
     });
   } catch {
     throw new ApiError({ status: 0, detail: "تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى." });

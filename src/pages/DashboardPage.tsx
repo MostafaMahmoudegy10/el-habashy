@@ -34,6 +34,14 @@ import { useAuth } from "../context/AuthContext";
 import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
 import { ApiError } from "../lib/api";
 
+function requestError(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    const fields = Object.entries(error.errors).map(([field, message]) => `${field}: ${message}`);
+    return fields.length ? `${error.message} — ${fields.join("، ")}` : error.message;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 async function readImages(files: FileList | null) {
   const imageFiles = Array.from(files ?? []).filter((file) => file.type.startsWith("image/"));
   return Promise.all(
@@ -61,7 +69,13 @@ export function DashboardPage() {
   const {
     lang,
     t,
-    listings,
+    adminListings: listings,
+    adminListingsLoading,
+    adminListingsError,
+    reloadAdminListings,
+    reloadContent,
+    sectorsLoading,
+    sectorsError,
     settings,
     aboutContent,
     sectors,
@@ -85,6 +99,8 @@ export function DashboardPage() {
   } = useApp();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Listing | null>(null);
+  const [changingListingId, setChangingListingId] = useState<number | null>(null);
+  const [mutationError, setMutationError] = useState("");
   const activeCount = listings.filter((listing) => listing.status === "active").length;
   const totalWhatsapp = listings.reduce((sum, listing) => sum + listing.whatsappClicks, 0);
   const totalViews = listings.reduce((sum, listing) => sum + listing.views, 0);
@@ -92,8 +108,7 @@ export function DashboardPage() {
   const mostWhatsapp = useMemo(() => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks)[0], [listings]);
   const topWhatsappListings = useMemo(() => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks).slice(0, 4), [listings]);
   const whatsappPreviewListing = mostViewed ?? listings[0];
-  const whatsappTemplate =
-    lang === "ar" ? settings.whatsappMessageAr : lang === "fr" ? settings.whatsappMessageFr : settings.whatsappMessageEn;
+  const whatsappTemplate = lang === "ar" ? settings.whatsappMessageAr : settings.whatsappMessageEn;
   const whatsappPreview = whatsappPreviewListing
     ? (whatsappTemplate || "{title}")
         .replace(/\{title\}/g, whatsappPreviewListing.title[lang])
@@ -104,6 +119,32 @@ export function DashboardPage() {
   const openEdit = (id: number) => {
     setEditingId(id);
     setDashboardView("edit");
+  };
+
+  const changeStatus = async (id: number, status: ListingStatus) => {
+    setMutationError("");
+    setChangingListingId(id);
+    try {
+      await updateListingStatus(id, status);
+    } catch (error) {
+      setMutationError(requestError(error, "تعذر تحديث حالة الإعلان."));
+    } finally {
+      setChangingListingId(null);
+    }
+  };
+
+  const removeListing = async () => {
+    if (!confirmDelete) return;
+    setMutationError("");
+    setChangingListingId(confirmDelete.id);
+    try {
+      await deleteListing(confirmDelete.id);
+      setConfirmDelete(null);
+    } catch (error) {
+      setMutationError(requestError(error, "تعذر حذف الإعلان."));
+    } finally {
+      setChangingListingId(null);
+    }
   };
 
   const nav: Array<{ id: DashboardView; label: string; icon: IconType }> = [
@@ -161,6 +202,22 @@ export function DashboardPage() {
       </aside>
 
       <div className="grid gap-6">
+        {adminListingsLoading ? (
+          <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-800">
+            <FiLoader className="animate-spin" />
+            {lang === "ar" ? "جاري تحميل بيانات لوحة التحكم..." : "Loading dashboard data..."}
+          </div>
+        ) : null}
+        {(adminListingsError || sectorsError || mutationError) ? (
+          <div className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+            <span>{mutationError || adminListingsError || sectorsError}</span>
+            {(adminListingsError || sectorsError) ? (
+              <button type="button" onClick={() => void Promise.all([reloadAdminListings(), reloadContent()])} className="underline">
+                {lang === "ar" ? "إعادة المحاولة" : "Retry"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
@@ -171,9 +228,7 @@ export function DashboardPage() {
               <p className="mt-2 text-sm font-semibold leading-7 text-slate-500">
                 {lang === "ar"
                   ? "إدارة المحتوى، المزادات، واتجاهات واتساب واللوكيشن من مكان واحد."
-                  : lang === "fr"
-                    ? "Gerez le contenu, les encheres, WhatsApp et les localisations depuis un seul endroit."
-                    : "Manage content, auctions, WhatsApp routing, and locations from one place."}
+                  : "Manage content, auctions, WhatsApp routing, and locations from one place."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -259,8 +314,9 @@ export function DashboardPage() {
                   </div>
                   <div className="grid gap-2 sm:grid-cols-4">
                     <select
+                      disabled={changingListingId === listing.id}
                       value={listing.status}
-                      onChange={(event) => updateListingStatus(listing.id, event.target.value as ListingStatus)}
+                      onChange={(event) => void changeStatus(listing.id, event.target.value as ListingStatus)}
                       className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-amber-400"
                     >
                       {(Object.keys(statusLabel) as ListingStatus[]).map((status) => (
@@ -279,16 +335,28 @@ export function DashboardPage() {
                   </div>
                 </div>
               ))}
+              {!adminListingsLoading && !listings.length ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-black text-slate-500">
+                  {lang === "ar" ? "لا توجد إعلانات حتى الآن." : "No listings yet."}
+                </div>
+              ) : null}
             </div>
           </Panel>
         ) : null}
 
         {dashboardView === "sectors" ? (
-          <SectorsPanel sectors={sectors} onUpdate={updateSector} />
+          <SectorsPanel sectors={sectors} loading={sectorsLoading} onUpdate={updateSector} />
         ) : null}
 
         {dashboardView === "create" ? (
-          <ListingForm title={t.createListing} submitLabel={t.saveListing} onSubmit={addListing} />
+          <ListingForm
+            title={t.createListing}
+            submitLabel={t.saveListing}
+            onSubmit={async (draft) => {
+              await addListing(draft);
+              setDashboardView("listings");
+            }}
+          />
         ) : null}
 
         {dashboardView === "edit" ? (
@@ -296,8 +364,8 @@ export function DashboardPage() {
             title={t.editListing}
             submitLabel={t.updateListing}
             initial={listingToDraft(listings.find((listing) => listing.id === editingId))}
-            onSubmit={(draft) => {
-              if (editingId) updateListing(editingId, draft);
+            onSubmit={async (draft) => {
+              if (editingId) await updateListing(editingId, draft);
               setDashboardView("listings");
             }}
           />
@@ -341,13 +409,11 @@ export function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteListing(confirmDelete.id);
-                  setConfirmDelete(null);
-                }}
+                disabled={changingListingId === confirmDelete.id}
+                onClick={() => void removeListing()}
                 className="h-12 rounded-full bg-rose-600 text-sm font-black text-white"
               >
-                {t.delete}
+                {changingListingId === confirmDelete.id ? <FiLoader className="mx-auto animate-spin" /> : t.delete}
               </button>
             </div>
           </div>
@@ -359,20 +425,24 @@ export function DashboardPage() {
 
 function SectorsPanel({
   sectors,
+  loading,
   onUpdate,
 }: {
   sectors: Sector[];
-  onUpdate: (id: ListingCategory, sector: Omit<Sector, "id">) => void;
+  loading: boolean;
+  onUpdate: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
 }) {
   const { lang, t } = useApp();
 
   return (
     <Panel title={t.manageSectors} icon={FiGrid}>
+      {loading ? <div className="grid min-h-32 place-items-center"><FiLoader className="animate-spin text-2xl text-amber-600" /></div> : null}
       <div className="grid gap-4 xl:grid-cols-2">
         {sectors.map((sector) => (
           <SectorEditor key={sector.id} sector={sector} activeLabel={sector.title[lang]} onUpdate={onUpdate} />
         ))}
       </div>
+      {!loading && !sectors.length ? <p className="py-8 text-center text-sm font-black text-slate-500">{lang === "ar" ? "لا توجد قطاعات." : "No sectors found."}</p> : null}
     </Panel>
   );
 }
@@ -384,7 +454,7 @@ function SectorEditor({
 }: {
   sector: Sector;
   activeLabel: string;
-  onUpdate: (id: ListingCategory, sector: Omit<Sector, "id">) => void;
+  onUpdate: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
 }) {
   const { t } = useApp();
   const Icon = categoryIcon[sector.id];
@@ -392,10 +462,25 @@ function SectorEditor({
     title: { ...sector.title },
     description: { ...sector.description },
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    setDraft({ title: { ...sector.title }, description: { ...sector.description } });
+  }, [sector]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onUpdate(sector.id, draft);
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await onUpdate(sector.id, draft);
+      setDraft({ title: { ...updated.title }, description: { ...updated.description } });
+    } catch (caught) {
+      setError(requestError(caught, "تعذر حفظ القطاع."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -410,18 +495,17 @@ function SectorEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Field label={t.sectorTitleAr} value={draft.title.ar} onChange={(value) => setDraft((current) => ({ ...current, title: { ...current.title, ar: value } }))} required />
         <Field label={t.sectorTitleEn} value={draft.title.en} onChange={(value) => setDraft((current) => ({ ...current, title: { ...current.title, en: value } }))} />
-        <Field label={t.sectorTitleFr} value={draft.title.fr} onChange={(value) => setDraft((current) => ({ ...current, title: { ...current.title, fr: value } }))} />
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Textarea label={t.sectorDescriptionAr} value={draft.description.ar} onChange={(value) => setDraft((current) => ({ ...current, description: { ...current.description, ar: value } }))} />
         <Textarea label={t.sectorDescriptionEn} value={draft.description.en} onChange={(value) => setDraft((current) => ({ ...current, description: { ...current.description, en: value } }))} />
-        <Textarea label={t.sectorDescriptionFr} value={draft.description.fr} onChange={(value) => setDraft((current) => ({ ...current, description: { ...current.description, fr: value } }))} />
       </div>
-      <button type="submit" className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white">
-        <FiSave />
+      {error ? <p className="rounded-2xl bg-rose-50 p-3 text-xs font-black text-rose-700">{error}</p> : null}
+      <button disabled={saving} type="submit" className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white disabled:cursor-wait disabled:opacity-60">
+        {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
         {t.saveSector}
       </button>
     </form>
@@ -437,50 +521,79 @@ function ListingForm({
   title: string;
   submitLabel: string;
   initial?: ListingDraft;
-  onSubmit: (draft: ListingDraft) => void;
+  onSubmit: (draft: ListingDraft) => Promise<unknown>;
 }) {
-  const { lang, t, sectors } = useApp();
+  const { lang, t, sectors, uploadListingImages } = useApp();
   const [draft, setDraft] = useState<ListingDraft>(initial);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   const patchDraft = <K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(draft);
+    if (uploading) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSubmit(draft);
+    } catch (caught) {
+      setError(requestError(caught, "تعذر حفظ الإعلان."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const uploadThumbnail = async (event: ChangeEvent<HTMLInputElement>) => {
-    const [image] = await readImages(event.target.files);
-    if (image) patchDraft("thumbnail", image);
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    setUploading(true);
+    setError("");
+    try {
+      const [image] = await uploadListingImages(files.slice(0, 1));
+      if (image) patchDraft("thumbnail", image);
+    } catch (caught) {
+      setError(requestError(caught, "تعذر رفع الصورة."));
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
   };
 
   const uploadGallery = async (event: ChangeEvent<HTMLInputElement>) => {
-    const images = await readImages(event.target.files);
-    patchDraft("gallery", images);
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    setUploading(true);
+    setError("");
+    try {
+      const images = await uploadListingImages(files.slice(0, 14));
+      patchDraft("gallery", images);
+    } catch (caught) {
+      setError(requestError(caught, "تعذر رفع الصور."));
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
   };
 
-  const previewTitle = draft.titleAr || draft.titleEn || draft.titleFr || (lang === "ar" ? "مزاد جديد" : lang === "fr" ? "Nouvelle enchere" : "New auction");
+  const previewTitle = draft.titleAr || draft.titleEn || (lang === "ar" ? "مزاد جديد" : "New auction");
   const previewSummary =
     draft.summaryAr ||
     draft.summaryEn ||
-    draft.summaryFr ||
-    (lang === "ar" ? "ملخص المزاد يظهر هنا أثناء الكتابة." : lang === "fr" ? "Le resume de l'enchere apparait ici." : "Auction summary appears here while typing.");
+    (lang === "ar" ? "ملخص المزاد يظهر هنا أثناء الكتابة." : "Auction summary appears here while typing.");
   const previewImage = draft.thumbnail || draft.gallery[0] || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=84";
   const slugPreview = makeSlug(draft.seoSlug || draft.titleEn || draft.titleAr || "auction");
   const activeSeoTitle =
     lang === "ar"
       ? draft.seoTitleAr || draft.titleAr
-      : lang === "fr"
-        ? draft.seoTitleFr || draft.titleFr || draft.seoTitleEn || draft.titleEn || draft.titleAr
-        : draft.seoTitleEn || draft.titleEn || draft.titleAr;
+      : draft.seoTitleEn || draft.titleEn || draft.titleAr;
   const activeSeoDescription =
     lang === "ar"
       ? draft.seoDescriptionAr || draft.summaryAr
-      : lang === "fr"
-        ? draft.seoDescriptionFr || draft.summaryFr || draft.seoDescriptionEn || draft.summaryEn || draft.summaryAr
-        : draft.seoDescriptionEn || draft.summaryEn || draft.summaryAr;
+      : draft.seoDescriptionEn || draft.summaryEn || draft.summaryAr;
   const readiness = [
     { label: t.titleAr, done: Boolean(draft.titleAr.trim()) },
     { label: t.category, done: Boolean(draft.category) },
@@ -503,9 +616,9 @@ function ListingForm({
               {lang === "ar" ? "املأ البيانات حسب الأقسام، وراجع المعاينة والـ SEO قبل الحفظ." : "Fill each section, then review the preview and SEO before saving."}
             </p>
           </div>
-          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300">
-            <FiSave />
-            {submitLabel}
+          <button disabled={saving || uploading} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60">
+            {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
+            {saving ? (lang === "ar" ? "جاري الحفظ..." : "Saving...") : submitLabel}
           </button>
         </div>
       </div>
@@ -516,7 +629,6 @@ function ListingForm({
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.titleAr} value={draft.titleAr} onChange={(value) => patchDraft("titleAr", value)} required />
               <Field label={t.titleEn} value={draft.titleEn} onChange={(value) => patchDraft("titleEn", value)} />
-              <Field label={t.titleFr} value={draft.titleFr} onChange={(value) => patchDraft("titleFr", value)} />
               <Select label={t.category} value={draft.category} onChange={(value) => patchDraft("category", value as ListingCategory)}>
                 {sectors.map((category) => (
                   <option key={category.id} value={category.id}>{category.title[lang]}</option>
@@ -538,13 +650,10 @@ function ListingForm({
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.cityAr} value={draft.cityAr} onChange={(value) => patchDraft("cityAr", value)} />
               <Field label={t.cityEn} value={draft.cityEn} onChange={(value) => patchDraft("cityEn", value)} />
-              <Field label={t.cityFr} value={draft.cityFr} onChange={(value) => patchDraft("cityFr", value)} />
               <Field label={t.locationAr} value={draft.locationAr} onChange={(value) => patchDraft("locationAr", value)} />
               <Field label={t.locationEn} value={draft.locationEn} onChange={(value) => patchDraft("locationEn", value)} />
-              <Field label={t.locationFr} value={draft.locationFr} onChange={(value) => patchDraft("locationFr", value)} />
               <Field label={t.valueAr} value={draft.priceLabelAr} onChange={(value) => patchDraft("priceLabelAr", value)} />
               <Field label={t.valueEn} value={draft.priceLabelEn} onChange={(value) => patchDraft("priceLabelEn", value)} />
-              <Field label={t.valueFr} value={draft.priceLabelFr} onChange={(value) => patchDraft("priceLabelFr", value)} />
               <Field label={t.measure} value={draft.measureLabel} onChange={(value) => patchDraft("measureLabel", value)} />
             </div>
           </FormSection>
@@ -559,13 +668,10 @@ function ListingForm({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label={`${t.beneficiary} AR`} value={draft.beneficiaryAr} onChange={(value) => patchDraft("beneficiaryAr", value)} />
               <Field label={`${t.beneficiary} EN`} value={draft.beneficiaryEn} onChange={(value) => patchDraft("beneficiaryEn", value)} />
-              <Field label={`${t.beneficiary} FR`} value={draft.beneficiaryFr} onChange={(value) => patchDraft("beneficiaryFr", value)} />
               <Field label={`${t.venue} AR`} value={draft.venueAr} onChange={(value) => patchDraft("venueAr", value)} />
               <Field label={`${t.venue} EN`} value={draft.venueEn} onChange={(value) => patchDraft("venueEn", value)} />
-              <Field label={`${t.venue} FR`} value={draft.venueFr} onChange={(value) => patchDraft("venueFr", value)} />
               <Field label={`${t.announcementSource} AR`} value={draft.announcementSourceAr} onChange={(value) => patchDraft("announcementSourceAr", value)} />
               <Field label={`${t.announcementSource} EN`} value={draft.announcementSourceEn} onChange={(value) => patchDraft("announcementSourceEn", value)} />
-              <Field label={`${t.announcementSource} FR`} value={draft.announcementSourceFr} onChange={(value) => patchDraft("announcementSourceFr", value)} />
               <Field label={t.mapUrl} value={draft.mapUrl} onChange={(value) => patchDraft("mapUrl", value)} />
               <Field label={`${t.listingWhatsappOverride} (${t.optionalOverride})`} value={draft.whatsappPhone} onChange={(value) => patchDraft("whatsappPhone", value)} />
             </div>
@@ -575,21 +681,19 @@ function ListingForm({
             <div className="grid gap-4 md:grid-cols-2">
               <Textarea label={t.summaryAr} value={draft.summaryAr} onChange={(value) => patchDraft("summaryAr", value)} />
               <Textarea label={t.summaryEn} value={draft.summaryEn} onChange={(value) => patchDraft("summaryEn", value)} />
-              <Textarea label={t.summaryFr} value={draft.summaryFr} onChange={(value) => patchDraft("summaryFr", value)} />
             </div>
             <div className="mt-5 grid gap-5">
               <RichTextEditor label={t.descriptionAr} value={draft.descriptionAr} onChange={(value) => patchDraft("descriptionAr", value)} placeholder={t.descriptionAr} />
               <RichTextEditor label={t.descriptionEn} value={draft.descriptionEn} onChange={(value) => patchDraft("descriptionEn", value)} placeholder={t.descriptionEn} />
-              <RichTextEditor label={t.descriptionFr} value={draft.descriptionFr} onChange={(value) => patchDraft("descriptionFr", value)} placeholder={t.descriptionFr} />
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <Textarea label={`${t.auctionNotes} AR`} value={draft.notesAr} onChange={(value) => patchDraft("notesAr", value)} />
               <Textarea label={`${t.auctionNotes} EN`} value={draft.notesEn} onChange={(value) => patchDraft("notesEn", value)} />
-              <Textarea label={`${t.auctionNotes} FR`} value={draft.notesFr} onChange={(value) => patchDraft("notesFr", value)} />
             </div>
           </FormSection>
 
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
+            {uploading ? <div className="mb-4 flex items-center gap-2 rounded-2xl bg-amber-50 p-3 text-sm font-black text-amber-800"><FiLoader className="animate-spin" />{lang === "ar" ? "جاري رفع الصور..." : "Uploading images..."}</div> : null}
             <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
               <div className="grid content-start gap-4">
                 <FileInput label={t.thumbnail} button={t.chooseImage} onChange={uploadThumbnail} />
@@ -606,17 +710,16 @@ function ListingForm({
             </div>
           </FormSection>
 
+          {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{error}</div> : null}
+
           <FormSection title="SEO" icon={FiSearch}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={`${t.seoTitle} AR`} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
               <Field label={`${t.seoTitle} EN`} value={draft.seoTitleEn} onChange={(value) => patchDraft("seoTitleEn", value)} />
-              <Field label={`${t.seoTitle} FR`} value={draft.seoTitleFr} onChange={(value) => patchDraft("seoTitleFr", value)} />
               <Textarea label={`${t.seoDescription} AR`} value={draft.seoDescriptionAr} onChange={(value) => patchDraft("seoDescriptionAr", value)} />
               <Textarea label={`${t.seoDescription} EN`} value={draft.seoDescriptionEn} onChange={(value) => patchDraft("seoDescriptionEn", value)} />
-              <Textarea label={`${t.seoDescription} FR`} value={draft.seoDescriptionFr} onChange={(value) => patchDraft("seoDescriptionFr", value)} />
               <Field label={`${t.seoKeywords} AR`} value={draft.seoKeywordsAr} onChange={(value) => patchDraft("seoKeywordsAr", value)} />
               <Field label={`${t.seoKeywords} EN`} value={draft.seoKeywordsEn} onChange={(value) => patchDraft("seoKeywordsEn", value)} />
-              <Field label={`${t.seoKeywords} FR`} value={draft.seoKeywordsFr} onChange={(value) => patchDraft("seoKeywordsFr", value)} />
               <Field label={t.seoSlug} value={draft.seoSlug} onChange={(value) => patchDraft("seoSlug", value)} />
             </div>
             <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-5">
@@ -669,64 +772,52 @@ function ListingForm({
 type WorkCategoryDraft = {
   titleAr: string;
   titleEn: string;
-  titleFr: string;
   itemsAr: string;
   itemsEn: string;
-  itemsFr: string;
 };
 
 const emptyWorkCategoryDraft: WorkCategoryDraft = {
   titleAr: "",
   titleEn: "",
-  titleFr: "",
   itemsAr: "",
   itemsEn: "",
-  itemsFr: "",
 };
 
 function categoryToDraft(category: WorkCategory): WorkCategoryDraft {
   return {
     titleAr: category.title.ar,
     titleEn: category.title.en,
-    titleFr: category.title.fr,
     itemsAr: category.items.map((item) => item.ar).join("\n"),
     itemsEn: category.items.map((item) => item.en).join("\n"),
-    itemsFr: category.items.map((item) => item.fr).join("\n"),
   };
 }
 
 function draftToCategory(draft: WorkCategoryDraft): Omit<WorkCategory, "id"> {
   const arItems = draft.itemsAr.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const enItems = draft.itemsEn.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-  const frItems = draft.itemsFr.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-  const max = Math.max(arItems.length, enItems.length, frItems.length);
+  const max = Math.max(arItems.length, enItems.length);
   return {
-    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr, fr: draft.titleFr || draft.titleEn || draft.titleAr },
+    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
     items: Array.from({ length: max }, (_, index) => ({
       ar: arItems[index] || enItems[index] || "",
       en: enItems[index] || arItems[index] || "",
-      fr: frItems[index] || enItems[index] || arItems[index] || "",
-    })).filter((item) => item.ar || item.en || item.fr),
+    })).filter((item) => item.ar || item.en),
   };
 }
 
 type CertificateDraft = {
   titleAr: string;
   titleEn: string;
-  titleFr: string;
   descriptionAr: string;
   descriptionEn: string;
-  descriptionFr: string;
   date: string;
 };
 
 const emptyCertificateDraft: CertificateDraft = {
   titleAr: "",
   titleEn: "",
-  titleFr: "",
   descriptionAr: "",
   descriptionEn: "",
-  descriptionFr: "",
   date: "",
 };
 
@@ -734,10 +825,8 @@ function certificateToDraft(certificate: Certificate): CertificateDraft {
   return {
     titleAr: certificate.title.ar,
     titleEn: certificate.title.en,
-    titleFr: certificate.title.fr,
     descriptionAr: certificate.description.ar,
     descriptionEn: certificate.description.en,
-    descriptionFr: certificate.description.fr,
     date: certificate.date,
   };
 }
@@ -747,12 +836,10 @@ function draftToCertificate(draft: CertificateDraft): Omit<Certificate, "id"> {
     title: {
       ar: draft.titleAr,
       en: draft.titleEn || draft.titleAr,
-      fr: draft.titleFr || draft.titleEn || draft.titleAr,
     },
     description: {
       ar: draft.descriptionAr,
       en: draft.descriptionEn || draft.descriptionAr,
-      fr: draft.descriptionFr || draft.descriptionEn || draft.descriptionAr,
     },
     date: draft.date,
   };
@@ -761,10 +848,8 @@ function draftToCertificate(draft: CertificateDraft): Omit<Certificate, "id"> {
 type StructureDraft = {
   leadersAr: string;
   leadersEn: string;
-  leadersFr: string;
   departmentsAr: string;
   departmentsEn: string;
-  departmentsFr: string;
 };
 
 function splitLines(value: string) {
@@ -775,29 +860,25 @@ function structureToDraft(structure: AboutContent["structure"]): StructureDraft 
   return {
     leadersAr: structure.leaders.map((item) => item.ar).join("\n"),
     leadersEn: structure.leaders.map((item) => item.en).join("\n"),
-    leadersFr: structure.leaders.map((item) => item.fr).join("\n"),
     departmentsAr: structure.departments.map((item) => item.ar).join("\n"),
     departmentsEn: structure.departments.map((item) => item.en).join("\n"),
-    departmentsFr: structure.departments.map((item) => item.fr).join("\n"),
   };
 }
 
-function draftToLocalizedList(ar: string, en: string, fr: string) {
+function draftToLocalizedList(ar: string, en: string) {
   const arItems = splitLines(ar);
   const enItems = splitLines(en);
-  const frItems = splitLines(fr);
-  const max = Math.max(arItems.length, enItems.length, frItems.length);
+  const max = Math.max(arItems.length, enItems.length);
   return Array.from({ length: max }, (_, index) => ({
-    ar: arItems[index] || enItems[index] || frItems[index] || "",
-    en: enItems[index] || arItems[index] || frItems[index] || "",
-    fr: frItems[index] || enItems[index] || arItems[index] || "",
-  })).filter((item) => item.ar || item.en || item.fr);
+    ar: arItems[index] || enItems[index] || "",
+    en: enItems[index] || arItems[index] || "",
+  })).filter((item) => item.ar || item.en);
 }
 
 function draftToStructure(draft: StructureDraft): AboutContent["structure"] {
   return {
-    leaders: draftToLocalizedList(draft.leadersAr, draft.leadersEn, draft.leadersFr),
-    departments: draftToLocalizedList(draft.departmentsAr, draft.departmentsEn, draft.departmentsFr),
+    leaders: draftToLocalizedList(draft.leadersAr, draft.leadersEn),
+    departments: draftToLocalizedList(draft.departmentsAr, draft.departmentsEn),
   };
 }
 
@@ -900,7 +981,6 @@ function AboutContentPanel({
           <div className="grid gap-4 lg:grid-cols-3">
             <Textarea label={`${t.aboutProfile} AR`} value={mainContent.profile.ar} onChange={(value) => setMainContent((current) => ({ ...current, profile: { ...current.profile, ar: value } }))} />
             <Textarea label={`${t.aboutProfile} EN`} value={mainContent.profile.en} onChange={(value) => setMainContent((current) => ({ ...current, profile: { ...current.profile, en: value } }))} />
-            <Textarea label={`${t.aboutProfile} FR`} value={mainContent.profile.fr} onChange={(value) => setMainContent((current) => ({ ...current, profile: { ...current.profile, fr: value } }))} />
           </div>
         </Panel>
       ) : null}
@@ -911,12 +991,10 @@ function AboutContentPanel({
             <div className="grid gap-4 lg:grid-cols-3">
               <Textarea label={t.leadersAr} value={structureDraft.leadersAr} onChange={(value) => setStructureDraft((current) => ({ ...current, leadersAr: value }))} />
               <Textarea label={t.leadersEn} value={structureDraft.leadersEn} onChange={(value) => setStructureDraft((current) => ({ ...current, leadersEn: value }))} />
-              <Textarea label={t.leadersFr} value={structureDraft.leadersFr} onChange={(value) => setStructureDraft((current) => ({ ...current, leadersFr: value }))} />
             </div>
             <div className="grid gap-4 lg:grid-cols-3">
               <Textarea label={t.departmentsAr} value={structureDraft.departmentsAr} onChange={(value) => setStructureDraft((current) => ({ ...current, departmentsAr: value }))} />
               <Textarea label={t.departmentsEn} value={structureDraft.departmentsEn} onChange={(value) => setStructureDraft((current) => ({ ...current, departmentsEn: value }))} />
-              <Textarea label={t.departmentsFr} value={structureDraft.departmentsFr} onChange={(value) => setStructureDraft((current) => ({ ...current, departmentsFr: value }))} />
             </div>
             <button type="submit" className="inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white">
               <FiSave />
@@ -939,7 +1017,6 @@ function AboutContentPanel({
                         <span>{certificate.date || "-"}</span>
                         <span>{certificate.title.ar}</span>
                         <span>{certificate.title.en}</span>
-                        <span>{certificate.title.fr}</span>
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
@@ -970,11 +1047,9 @@ function AboutContentPanel({
               </div>
               <Field label={t.certificateTitleAr} value={certificateDraft.titleAr} onChange={(value) => patchCertificate("titleAr", value)} required />
               <Field label={t.certificateTitleEn} value={certificateDraft.titleEn} onChange={(value) => patchCertificate("titleEn", value)} />
-              <Field label={t.certificateTitleFr} value={certificateDraft.titleFr} onChange={(value) => patchCertificate("titleFr", value)} />
               <Field label={t.certificateDate} value={certificateDraft.date} onChange={(value) => patchCertificate("date", value)} />
               <Textarea label={t.certificateDescriptionAr} value={certificateDraft.descriptionAr} onChange={(value) => patchCertificate("descriptionAr", value)} />
               <Textarea label={t.certificateDescriptionEn} value={certificateDraft.descriptionEn} onChange={(value) => patchCertificate("descriptionEn", value)} />
-              <Textarea label={t.certificateDescriptionFr} value={certificateDraft.descriptionFr} onChange={(value) => patchCertificate("descriptionFr", value)} />
               <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15">
                 <FiSave />
                 {t.saveCertificate}
@@ -996,7 +1071,6 @@ function AboutContentPanel({
                       <span>{category.items.length} {t.itemCount}</span>
                       <span>{category.title.ar}</span>
                       <span>{category.title.en}</span>
-                      <span>{category.title.fr}</span>
                     </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -1028,10 +1102,8 @@ function AboutContentPanel({
             <div className="grid gap-4">
               <Field label={t.categoryTitleAr} value={draft.titleAr} onChange={(value) => patch("titleAr", value)} required />
               <Field label={t.categoryTitleEn} value={draft.titleEn} onChange={(value) => patch("titleEn", value)} />
-              <Field label={t.categoryTitleFr} value={draft.titleFr} onChange={(value) => patch("titleFr", value)} />
               <Textarea label={t.categoryItemsAr} value={draft.itemsAr} onChange={(value) => patch("itemsAr", value)} />
               <Textarea label={t.categoryItemsEn} value={draft.itemsEn} onChange={(value) => patch("itemsEn", value)} />
-              <Textarea label={t.categoryItemsFr} value={draft.itemsFr} onChange={(value) => patch("itemsFr", value)} />
               <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15">
                 <FiSave />
                 {t.saveCategory}
@@ -1077,9 +1149,8 @@ function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete }: { k
 function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit: (settings: AppSettings) => void }) {
   const { lang, t, sectors } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
-  const previewAuctionTitle = lang === "ar" ? "مزاد عقاري" : lang === "fr" ? "Enchere immobiliere" : "Property auction";
-  const activeTemplate =
-    lang === "ar" ? draft.whatsappMessageAr : lang === "fr" ? draft.whatsappMessageFr : draft.whatsappMessageEn;
+  const previewAuctionTitle = lang === "ar" ? "مزاد عقاري" : "Property auction";
+  const activeTemplate = lang === "ar" ? draft.whatsappMessageAr : draft.whatsappMessageEn;
   const preview = (activeTemplate || "{title}")
     .replace(/\{title\}/g, previewAuctionTitle)
     .replace(/\{category\}/g, getSectorTitle(sectors, "real-estate", lang))
@@ -1105,7 +1176,6 @@ function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit
               <Field label={t.contactEmail} value={draft.contactEmail} onChange={(value) => patch("contactEmail", value)} />
               <Field label={`${t.officeAddress} AR`} value={draft.officeAddress.ar} onChange={(value) => patch("officeAddress", { ...draft.officeAddress, ar: value })} />
               <Field label={`${t.officeAddress} EN`} value={draft.officeAddress.en} onChange={(value) => patch("officeAddress", { ...draft.officeAddress, en: value })} />
-              <Field label={`${t.officeAddress} FR`} value={draft.officeAddress.fr} onChange={(value) => patch("officeAddress", { ...draft.officeAddress, fr: value })} />
               <Field label={t.mapUrl} value={draft.mapUrl} onChange={(value) => patch("mapUrl", value)} />
               <Field label="Facebook" value={draft.facebookUrl} onChange={(value) => patch("facebookUrl", value)} />
               <Field label="LinkedIn" value={draft.linkedinUrl} onChange={(value) => patch("linkedinUrl", value)} />
@@ -1133,15 +1203,12 @@ function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit
           <div className="grid gap-4 md:grid-cols-3">
             <Textarea label={t.whatsappMessageAr} value={draft.whatsappMessageAr} onChange={(value) => patch("whatsappMessageAr", value)} />
             <Textarea label={t.whatsappMessageEn} value={draft.whatsappMessageEn} onChange={(value) => patch("whatsappMessageEn", value)} />
-            <Textarea label={t.whatsappMessageFr} value={draft.whatsappMessageFr} onChange={(value) => patch("whatsappMessageFr", value)} />
           </div>
 
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-900">
             {lang === "ar"
               ? "تقدر تستخدم {title} لاسم المزاد، {category} للتصنيف، و {id} لرقم المزاد داخل رسالة الواتساب."
-              : lang === "fr"
-                ? "Utilisez {title} pour le nom de l'enchere, {category} pour la categorie et {id} pour l'identifiant dans le message WhatsApp."
-                : "You can use {title} for the auction name, {category} for category, and {id} for the auction id inside the WhatsApp message."}
+              : "You can use {title} for the auction name, {category} for category, and {id} for the auction id inside the WhatsApp message."}
           </div>
         </div>
       </Panel>

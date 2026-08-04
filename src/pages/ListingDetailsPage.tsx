@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { IconType } from "react-icons";
-import { FiCalendar, FiClock, FiExternalLink, FiHeart, FiInfo, FiMapPin, FiUserCheck } from "react-icons/fi";
+import { FiCalendar, FiClock, FiExternalLink, FiHeart, FiInfo, FiLoader, FiMapPin, FiUserCheck } from "react-icons/fi";
 import { statusLabel } from "../lib/i18n";
 import { getSectorTitle } from "../lib/sectors";
 import { LazyImage } from "../components/LazyImage";
@@ -8,9 +8,32 @@ import { RichContent } from "../components/RichContent";
 import { ListingCard } from "../components/ListingCard";
 import { WhatsAppButton } from "../components/WhatsAppButton";
 import { useApp } from "../context/AppContext";
+import type { Listing } from "../types";
 
 export function ListingDetailsPage() {
-  const { lang, t, listings, sectors, selectedListing, settings, currentUser, toggleFavorite } = useApp();
+  const { selectedListing, listingDetailLoading, listingDetailError } = useApp();
+
+  if (!selectedListing) {
+    return (
+      <section className="mx-auto grid min-h-80 max-w-7xl place-items-center px-4 py-10 text-center">
+        {listingDetailLoading ? <FiLoader className="animate-spin text-3xl text-amber-600" /> : (
+          <strong className="text-lg font-black text-slate-700">{listingDetailError || "لا يوجد إعلان لعرضه."}</strong>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <ListingDetailsContent
+      selectedListing={selectedListing}
+      loading={listingDetailLoading}
+      error={listingDetailError}
+    />
+  );
+}
+
+function ListingDetailsContent({ selectedListing, loading, error }: { selectedListing: Listing; loading: boolean; error: string }) {
+  const { lang, t, listings, sectors, settings, currentUser, toggleFavorite } = useApp();
   const [imageIndex, setImageIndex] = useState(0);
   const favorite = Boolean(currentUser?.favorites?.includes(selectedListing.id));
   const locationUrl = selectedListing.mapUrl || settings.mapUrl;
@@ -32,6 +55,13 @@ export function ListingDetailsPage() {
 
   return (
     <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 lg:px-6 lg:py-10">
+      {loading ? (
+        <div className="flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">
+          <FiLoader className="animate-spin" />
+          {lang === "ar" ? "جاري تحديث تفاصيل الإعلان..." : "Refreshing listing details..."}
+        </div>
+      ) : null}
+      {error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-700">{error}</div> : null}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <div className="grid gap-3">
           <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-950/10">

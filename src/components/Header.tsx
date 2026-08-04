@@ -166,10 +166,10 @@ export function Header() {
           ) : null}
           <div className="group relative">
             <button type="button" className="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm transition hover:border-amber-300 hover:bg-amber-50" aria-label="Change language">
-              <FiGlobe /><span className="hidden sm:inline">{lang === "ar" ? "العربية" : lang === "fr" ? "Français" : "English"}</span><FiChevronDown />
+              <FiGlobe /><span className="hidden sm:inline">{lang === "ar" ? "العربية" : "English"}</span><FiChevronDown />
             </button>
             <div className="invisible absolute end-0 top-full z-50 mt-2 grid min-w-40 translate-y-1 gap-1 rounded-2xl border border-slate-200 bg-white p-2 opacity-0 shadow-2xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-              {([{ id: "ar", label: "العربية" }, { id: "en", label: "English" }, { id: "fr", label: "Français" }] as const).map((item) => <button key={item.id} type="button" onClick={() => setLang(item.id)} className={`min-h-10 rounded-xl px-4 text-start text-sm font-black ${lang === item.id ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-amber-50"}`}>{item.label}</button>)}
+              {([{ id: "ar", label: "العربية" }, { id: "en", label: "English" }] as const).map((item) => <button key={item.id} type="button" onClick={() => setLang(item.id)} className={`min-h-10 rounded-xl px-4 text-start text-sm font-black ${lang === item.id ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-amber-50"}`}>{item.label}</button>)}
             </div>
           </div>
           <button

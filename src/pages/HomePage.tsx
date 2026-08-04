@@ -11,6 +11,7 @@ import {
   FiClock,
   FiExternalLink,
   FiMail,
+  FiLoader,
   FiMapPin,
   FiMessageCircle,
   FiMousePointer,
@@ -30,7 +31,21 @@ import heroBackground from "../assets/elhabashy-hero-bg.png";
 import type { Listing } from "../types";
 
 export function HomePage() {
-  const { lang, t, listings, sectors, services, navigate, navigateListings, selectListing, selectService } = useApp();
+  const {
+    lang,
+    t,
+    listings,
+    listingsLoading,
+    listingsError,
+    sectors,
+    sectorsError,
+    services,
+    reloadContent,
+    navigate,
+    navigateListings,
+    selectListing,
+    selectService,
+  } = useApp();
   const [slide, setSlide] = useState(0);
   const featured = listings.filter((listing) => listing.featured);
   const latest = useMemo(
@@ -51,6 +66,12 @@ export function HomePage() {
 
   return (
     <>
+      {listingsLoading ? (
+        <div className="flex items-center justify-center gap-3 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800"><FiLoader className="animate-spin" />{lang === "ar" ? "جاري تحميل أحدث الإعلانات..." : "Loading latest listings..."}</div>
+      ) : null}
+      {(listingsError || sectorsError) ? (
+        <div className="flex flex-col items-center justify-center gap-3 bg-rose-50 px-4 py-3 text-center text-sm font-black text-rose-700 sm:flex-row"><span>{listingsError || sectorsError}</span><button type="button" onClick={() => void reloadContent()} className="underline">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
+      ) : null}
       <section
         className="relative overflow-hidden border-b border-amber-100/80 bg-slate-950"
         style={{
@@ -178,13 +199,11 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
         <SectionHeading
           eyebrow={t.featuredListings}
-          title={lang === "ar" ? "أصول مختارة بعناية" : lang === "fr" ? "Actifs selectionnes avec soin" : "Carefully selected assets"}
+          title={lang === "ar" ? "أصول مختارة بعناية" : "Carefully selected assets"}
           subtitle={
             lang === "ar"
               ? "صور واضحة، بيانات مختصرة، وخطوة مباشرة للتواصل مع الفريق."
-              : lang === "fr"
-                ? "Photos claires, donnees utiles et contact direct avec l'equipe."
-                : "Clear photos, focused data, and one direct step to contact the team."
+              : "Clear photos, focused data, and one direct step to contact the team."
           }
         />
         <FeaturedListingsRail listings={featured.length ? featured : latest} />
@@ -207,8 +226,8 @@ export function HomePage() {
             {[
               { icon: FiSearch, text: lang === "ar" ? "تصفح العروض" : "Browse listings" },
               { icon: FiMousePointer, text: lang === "ar" ? "شاهد التفاصيل" : "View details" },
-              { icon: FiMapPin, text: lang === "ar" ? "راجع المكان" : lang === "fr" ? "Verifier le lieu" : "Check location" },
-              { icon: FaWhatsapp, text: lang === "ar" ? "تواصل واتساب" : lang === "fr" ? "Contacter sur WhatsApp" : "Contact on WhatsApp" },
+              { icon: FiMapPin, text: lang === "ar" ? "راجع المكان" : "Check location" },
+              { icon: FaWhatsapp, text: lang === "ar" ? "تواصل واتساب" : "Contact on WhatsApp" },
             ].map((item, index) => {
               const Icon = item.icon;
               return (
@@ -416,13 +435,11 @@ function MostContactedBoard({ listings }: { listings: Listing[] }) {
       <div className="relative">
         <SectionHeading
           eyebrow={t.mostContacted}
-          title={lang === "ar" ? "العروض الأكثر تواصلا من العملاء" : lang === "fr" ? "Les offres les plus contactees" : "Most contacted by customers"}
+          title={lang === "ar" ? "العروض الأكثر تواصلا من العملاء" : "Most contacted by customers"}
           subtitle={
             lang === "ar"
               ? "ترتيب واضح يبين أي أصول عليها تواصل أعلى ويشجع العميل يتحرك بسرعة."
-              : lang === "fr"
-                ? "Un classement clair qui montre les offres avec le plus de contacts."
-                : "A ranked board that makes customer contact obvious and helps customers move faster."
+              : "A ranked board that makes customer contact obvious and helps customers move faster."
           }
           inverted
         />
@@ -477,7 +494,7 @@ function MostContactedBoard({ listings }: { listings: Listing[] }) {
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <span className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-1 text-xs font-black text-slate-950">
                   <FiStar />
-                  {lang === "ar" ? "الأعلى تواصلا" : lang === "fr" ? "Le plus contacte" : "Top contacted"}
+                  {lang === "ar" ? "الأعلى تواصلا" : "Top contacted"}
                 </span>
                 <h3 className="mt-4 line-clamp-2 text-2xl font-black leading-tight text-white">{topListing.title[lang]}</h3>
               </div>
@@ -507,21 +524,21 @@ function HomeAboutPreview() {
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
 
   const stats = [
-    { value: "15+", label: lang === "ar" ? "سنة خبرة" : lang === "fr" ? "Annees d'experience" : "Years of experience" },
-    { value: "120+", label: lang === "ar" ? "مزايدة وأصل منظم" : lang === "fr" ? "Actifs organises" : "Organized assets" },
-    { value: sectors.length, label: lang === "ar" ? "قطاعات أصول" : lang === "fr" ? "Secteurs d'actifs" : "Asset sectors" },
+    { value: "15+", label: lang === "ar" ? "سنة خبرة" : "Years of experience" },
+    { value: "120+", label: lang === "ar" ? "مزايدة وأصل منظم" : "Organized assets" },
+    { value: sectors.length, label: lang === "ar" ? "قطاعات أصول" : "Asset sectors" },
   ];
 
   const strengths = [
     {
       icon: FiShield,
-      title: lang === "ar" ? "شفافية في العرض" : lang === "fr" ? "Presentation transparente" : "Transparent showcase",
-      text: lang === "ar" ? "صور، حالة، موقع، وبيانات مختصرة قبل أي تواصل." : lang === "fr" ? "Photos, statut, lieu et donnees claires avant le contact." : "Photos, status, location, and clear data before contact.",
+      title: lang === "ar" ? "شفافية في العرض" : "Transparent showcase",
+      text: lang === "ar" ? "صور، حالة، موقع، وبيانات مختصرة قبل أي تواصل." : "Photos, status, location, and clear data before contact.",
     },
     {
       icon: FiBriefcase,
-      title: lang === "ar" ? "متابعة منظمة" : lang === "fr" ? "Suivi organise" : "Organized follow-up",
-      text: lang === "ar" ? "كل مزاد له بيانات تواصل وواتساب وموقع واضح لتسهيل المتابعة." : lang === "fr" ? "Chaque offre garde ses donnees de contact, WhatsApp et localisation." : "Each listing keeps clear contact, WhatsApp, and location data for follow-up.",
+      title: lang === "ar" ? "متابعة منظمة" : "Organized follow-up",
+      text: lang === "ar" ? "كل مزاد له بيانات تواصل وواتساب وموقع واضح لتسهيل المتابعة." : "Each listing keeps clear contact, WhatsApp, and location data for follow-up.",
     },
   ];
 
@@ -539,14 +556,12 @@ function HomeAboutPreview() {
           <div className="absolute inset-x-0 bottom-0 p-6 text-white">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-amber-200 backdrop-blur">
               <FiMapPin />
-              {lang === "ar" ? "القاهرة، مصر" : lang === "fr" ? "Le Caire, Egypte" : "Cairo, Egypt"}
+              {lang === "ar" ? "القاهرة، مصر" : "Cairo, Egypt"}
             </span>
             <p className="mt-4 max-w-md text-sm font-semibold leading-7 text-slate-200">
               {lang === "ar"
                 ? "مقر إداري للتواصل، مراجعة المستندات، وترتيب المعاينات مع العملاء والجهات المالكة للأصول."
-                : lang === "fr"
-                  ? "Un point de contact pour les documents, les visites et le suivi des actifs."
-                  : "A contact hub for documents, inspections, and organized asset follow-up."}
+                : "A contact hub for documents, inspections, and organized asset follow-up."}
             </p>
           </div>
         </div>
@@ -556,16 +571,12 @@ function HomeAboutPreview() {
           <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
             {lang === "ar"
               ? "الحبشي مش مجرد عرض أصول، ده خبرة مزايدات وتقييم وتنظيم مستندات."
-              : lang === "fr"
-                ? "El Habashy combine evaluation, enchere et organisation des donnees."
-                : "El Habashy is valuation, auction experience, and organized documentation."}
+              : "El Habashy is valuation, auction experience, and organized documentation."}
           </h2>
           <p className="mt-5 text-sm font-semibold leading-8 text-slate-600 md:text-base">
             {lang === "ar"
               ? "نجهز تجربة عرض محترمة للأصول: عقارات، سيارات، أنتيكات، وسكراب. الهدف إن العميل يفهم العرض بسرعة ويتواصل مع الفريق بخطوات واضحة."
-              : lang === "fr"
-                ? "Nous preparons une vitrine claire pour l'immobilier, les voitures, les antiquites et les lots industriels afin que le client comprenne vite et contacte l'equipe facilement."
-                : "We prepare a premium asset showcase across real estate, cars, antiques, and scrap so customers understand listings quickly and contact the team easily."}
+              : "We prepare a premium asset showcase across real estate, cars, antiques, and scrap so customers understand listings quickly and contact the team easily."}
           </p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
@@ -595,7 +606,7 @@ function HomeAboutPreview() {
             onClick={() => navigate("about")}
             className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-1 hover:bg-slate-800"
           >
-            {lang === "ar" ? "رؤية المزيد عن الحبشي" : lang === "fr" ? "En savoir plus sur El Habashy" : "Read more about El Habashy"}
+            {lang === "ar" ? "رؤية المزيد عن الحبشي" : "Read more about El Habashy"}
             <ArrowIcon />
           </button>
         </div>
@@ -609,10 +620,10 @@ function ContactExperience() {
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
 
   const contactCards = [
-    { icon: FiPhone, label: lang === "ar" ? "اتصال مباشر" : lang === "fr" ? "Telephone direct" : "Direct phone", value: settings.contactPhone },
+    { icon: FiPhone, label: lang === "ar" ? "اتصال مباشر" : "Direct phone", value: settings.contactPhone },
     { icon: FaWhatsapp, label: t.whatsapp, value: settings.whatsappNumber, href: `https://wa.me/${settings.whatsappNumber.replace(/[^\d]/g, "")}` },
     { icon: FiMail, label: t.email, value: settings.contactEmail, href: `mailto:${settings.contactEmail}` },
-    { icon: FiMapPin, label: lang === "ar" ? "مقر الشركة" : lang === "fr" ? "Bureau" : "Office location", value: settings.officeAddress[lang], href: settings.mapUrl },
+    { icon: FiMapPin, label: lang === "ar" ? "مقر الشركة" : "Office location", value: settings.officeAddress[lang], href: settings.mapUrl },
   ];
 
   return (
@@ -623,14 +634,12 @@ function ContactExperience() {
           <div>
             <span className="text-xs font-black uppercase text-amber-300">{t.contact}</span>
             <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
-              {lang === "ar" ? "تواصل واضح مع فريق الحبشي." : lang === "fr" ? "Une experience de contact claire et directe." : "Clear contact with the El Habashy team."}
+              {lang === "ar" ? "تواصل واضح مع فريق الحبشي." : "Clear contact with the El Habashy team."}
             </h2>
             <p className="mt-5 text-sm font-semibold leading-8 text-slate-300">
               {lang === "ar"
                 ? "افتح تفاصيل العرض أو تواصل مع الفريق لمعرفة المستندات المطلوبة، مواعيد المعاينة، وخطوات استلام البيانات."
-                : lang === "fr"
-                  ? "Ouvrez les details de l'offre ou contactez l'equipe pour les documents, les visites et les prochaines etapes."
-                  : "Open the listing details or contact the team for documents, viewing dates, and next steps."}
+                : "Open the listing details or contact the team for documents, viewing dates, and next steps."}
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button
