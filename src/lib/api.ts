@@ -48,7 +48,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           ? options.body as FormData
           : JSON.stringify(options.body),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
     throw new ApiError({ status: 0, detail: "تعذر الاتصال بالخادم. تحقق من الإنترنت ثم حاول مرة أخرى." });
   }
 

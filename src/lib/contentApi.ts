@@ -44,7 +44,6 @@ export type UpsertListingBody = {
   priceLabel: LocalizedText;
   measureLabel: string;
   featured: boolean;
-  images: string[];
   specs: Specification[];
   publishDate?: string;
   expireDate?: string;
@@ -61,13 +60,10 @@ export type UpsertListingBody = {
   seoKeywords?: LocalizedText;
 };
 
-export type UploadedImage = {
-  url: string;
-  publicId: string;
-  width: number;
-  height: number;
-  bytes: number;
-  format: string;
+export type ListingSubmissionMedia = {
+  thumbnail: File;
+  gallery: File[];
+  video?: File;
 };
 
 function queryString(query: ListingQuery = {}) {
@@ -95,8 +91,22 @@ export type AuthorizedRequest = <T>(
 export const adminContentApi = {
   listings: (request: AuthorizedRequest, query: ListingQuery = {}) =>
     request<PageResponse<ListingResponse>>(`/api/v1/admin/listings${queryString(query)}`),
-  createListing: (request: AuthorizedRequest, body: UpsertListingBody) =>
-    request<ListingResponse>("/api/v1/admin/listings", { method: "POST", body }),
+  createListing: (
+    request: AuthorizedRequest,
+    body: UpsertListingBody,
+    media: ListingSubmissionMedia,
+  ) => {
+    const multipart = new FormData();
+    multipart.append(
+      "listing",
+      new Blob([JSON.stringify(body)], { type: "application/json" }),
+      "listing.json",
+    );
+    multipart.append("thumbnail", media.thumbnail, media.thumbnail.name);
+    media.gallery.forEach((image) => multipart.append("gallery", image, image.name));
+    if (media.video) multipart.append("video", media.video, media.video.name);
+    return request<ListingResponse>("/api/v1/admin/listings", { method: "POST", body: multipart });
+  },
   updateListing: (request: AuthorizedRequest, id: number, body: UpsertListingBody) =>
     request<ListingResponse>(`/api/v1/admin/listings/${id}`, { method: "PUT", body }),
   updateListingStatus: (request: AuthorizedRequest, id: number, status: ListingStatus) =>
@@ -111,12 +121,4 @@ export const adminContentApi = {
     code: ListingCategory,
     sector: Pick<Sector, "title" | "description">,
   ) => request<SectorResponse>(`/api/v1/admin/sectors/${code}`, { method: "PATCH", body: sector }),
-  uploadImages: (request: AuthorizedRequest, files: File[]) => {
-    const body = new FormData();
-    files.forEach((file) => body.append("files", file));
-    return request<{ images: UploadedImage[] }>("/api/v1/admin/media/images", {
-      method: "POST",
-      body,
-    });
-  },
 };

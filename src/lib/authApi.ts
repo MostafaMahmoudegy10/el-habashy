@@ -2,7 +2,7 @@ import { apiRequest } from "./api";
 
 export type UserRole = "USER" | "ADMIN";
 export type AuthUser = { id: string; firstName: string; lastName: string; email: string; role: UserRole; enabled: boolean; createdAt: string; favorites?: number[] };
-export type AuthResponse = { accessToken: string; tokenType: "Bearer"; expiresIn: number; user: AuthUser };
+export type AuthResponse = { accessToken: string; tokenType: "Bearer"; expiresIn: number; expiresAt?: string; user: AuthUser };
 export type RegistrationResponse = { message: string; email: string };
 export type MessageResponse = { message: string };
 export type PageResponse<T> = { content: T[]; page: number; size: number; totalElements: number; totalPages: number; first: boolean; last: boolean };

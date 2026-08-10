@@ -38,6 +38,31 @@ export type Specification = {
   value: LocalizedText;
 };
 
+export type ListingMediaType = "image" | "video";
+export type ListingMediaRole = "thumbnail" | "gallery" | "video";
+export type ListingMediaStatus = "uploading" | "processing" | "ready" | "failed";
+
+export type ListingMedia = {
+  id: number;
+  type: ListingMediaType;
+  role: ListingMediaRole;
+  status: ListingMediaStatus;
+  publicId?: string;
+  url?: string;
+  fileName: string;
+  contentType: string;
+  format?: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+  expectedBytes: number;
+  uploadedBytes: number;
+  progress: number;
+  durationSeconds?: number;
+  displayOrder: number;
+  failureReason?: string;
+};
+
 export type Listing = {
   id: number;
   slug: string;
@@ -52,6 +77,7 @@ export type Listing = {
   measureLabel: string;
   featured: boolean;
   images: string[];
+  media?: ListingMedia[];
   specs: Specification[];
   createdAt: string;
   publishDate?: string;
@@ -90,6 +116,7 @@ export type ListingDraft = {
   priceLabelAr: string;
   priceLabelEn: string;
   measureLabel: string;
+  specs: Specification[];
   publishDate: string;
   expireDate: string;
   auctionDate: string;
