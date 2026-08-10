@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   FiArrowUpRight,
@@ -35,6 +35,7 @@ export function HomePage() {
     lang,
     t,
     listings,
+    featuredListings,
     listingsLoading,
     listingsError,
     sectors,
@@ -47,7 +48,8 @@ export function HomePage() {
     selectService,
   } = useApp();
   const [slide, setSlide] = useState(0);
-  const featured = listings.filter((listing) => listing.featured);
+  const [heroPaused, setHeroPaused] = useState(false);
+  const featured = featuredListings;
   const latest = useMemo(
     () => [...listings].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5),
     [listings],
@@ -63,6 +65,18 @@ export function HomePage() {
   const changeSlide = (direction: number) => {
     setSlide((current) => (current + direction + slides.length) % slides.length);
   };
+
+  useEffect(() => {
+    setSlide((current) => slides.length ? current % slides.length : 0);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (heroPaused || slides.length < 2) return;
+    const interval = window.setInterval(() => {
+      setSlide((current) => (current + 1) % slides.length);
+    }, 6000);
+    return () => window.clearInterval(interval);
+  }, [heroPaused, slides.length]);
 
   return (
     <>
@@ -120,8 +134,14 @@ export function HomePage() {
           </div>
 
           {active ? (
-            <div className="rounded-[2rem] border border-white/70 bg-white/65 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl animate-float">
-              <div className="relative overflow-hidden rounded-[1.5rem] bg-slate-950">
+            <div
+              className="rounded-[2rem] border border-white/70 bg-white/65 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl animate-float"
+              onMouseEnter={() => setHeroPaused(true)}
+              onMouseLeave={() => setHeroPaused(false)}
+              onFocusCapture={() => setHeroPaused(true)}
+              onBlurCapture={() => setHeroPaused(false)}
+            >
+              <div key={active.id} className="relative overflow-hidden rounded-[1.5rem] bg-slate-950 animate-fade-up" aria-live="polite">
                 <LazyImage
                   eager
                   src={active.images[0]}
@@ -149,20 +169,33 @@ export function HomePage() {
                   </SliderButton>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                {slides.slice(0, 3).map((listing, index) => (
+              <div className="mt-3 grid grid-cols-4 gap-3">
+                {slides.slice(0, 4).map((listing, index) => (
                   <button
                     key={listing.id}
                     type="button"
                     onClick={() => setSlide(index)}
                     className={`overflow-hidden rounded-2xl border transition duration-300 ${
-                      index === slide ? "border-amber-400 ring-4 ring-amber-200/60" : "border-white/70 hover:border-amber-300"
+                      index === slide % slides.length ? "border-amber-400 ring-4 ring-amber-200/60" : "border-white/70 hover:border-amber-300"
                     }`}
                   >
                     <LazyImage src={listing.images[0]} alt="" className="aspect-[1.45] w-full object-cover" />
                   </button>
                 ))}
               </div>
+              {slides.length > 1 ? (
+                <div className="mt-3 flex items-center justify-center gap-1.5" aria-label={lang === "ar" ? "شرائح المزادات المميزة" : "Featured auction slides"}>
+                  {slides.map((listing, index) => (
+                    <button
+                      key={listing.id}
+                      type="button"
+                      onClick={() => setSlide(index)}
+                      className={`h-1.5 rounded-full transition-all ${index === slide % slides.length ? "w-8 bg-amber-500" : "w-2 bg-slate-300 hover:bg-amber-300"}`}
+                      aria-label={`${index + 1}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

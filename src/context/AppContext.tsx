@@ -54,6 +54,7 @@ type AppContextValue = {
   dashboardView: DashboardView;
   mobileOpen: boolean;
   listings: Listing[];
+  featuredListings: Listing[];
   listingsLoading: boolean;
   listingsError: string;
   adminListings: Listing[];
@@ -438,6 +439,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [dashboardView, setDashboardView] = useState<DashboardView>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [listingsError, setListingsError] = useState("");
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
@@ -502,9 +504,23 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const loadFeaturedListings = useCallback(async () => {
+    try {
+      const response = await publicContentApi.listings({
+        featured: true,
+        page: 0,
+        size: 20,
+        sort: "createdAt,desc",
+      });
+      setFeaturedListings(response.content.map(listingFromResponse));
+    } catch {
+      setFeaturedListings([]);
+    }
+  }, []);
+
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadSectors()]);
-  }, [loadPublicListings, loadSectors]);
+    await Promise.all([loadPublicListings(), loadFeaturedListings(), loadSectors()]);
+  }, [loadFeaturedListings, loadPublicListings, loadSectors]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -575,6 +591,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       dashboardView,
       mobileOpen,
       listings,
+      featuredListings,
       listingsLoading,
       listingsError,
       adminListings,
@@ -687,7 +704,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const nextListing = listingFromResponse(response);
         setAdminListings((current) => [nextListing, ...current.filter((listing) => listing.id !== nextListing.id)]);
         setSelectedListingId(nextListing.id);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return nextListing;
       },
@@ -697,7 +714,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const updated = listingFromResponse(response);
         setAdminListings((items) => items.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return updated;
       },
@@ -705,7 +722,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         await adminContentApi.deleteListing(authorizedRequest, id);
         setAdminListings((current) => current.filter((listing) => listing.id !== id));
         setSelectedListingDetail((detail) => detail?.id === id ? undefined : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
       },
       async updateListingStatus(id, status) {
@@ -713,14 +730,14 @@ export function AppProvider({ children }: PropsWithChildren) {
         const updated = listingFromResponse(response);
         setAdminListings((current) => current.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return updated;
       },
       async uploadListingMedia(listingId, file, role, options) {
         try {
           const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, options);
-          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          await Promise.all([reloadAdminListings(), reloadContent()]);
           return media;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") throw error;
@@ -736,7 +753,7 @@ export function AppProvider({ children }: PropsWithChildren) {
             media,
             options,
           );
-          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          await Promise.all([reloadAdminListings(), reloadContent()]);
           return completed;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") throw error;
@@ -746,7 +763,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       },
       async deleteListingMedia(listingId, mediaId) {
         await listingMediaApi.delete(authorizedRequest, listingId, mediaId);
-        await Promise.all([reloadAdminListings(), loadPublicListings()]);
+        await Promise.all([reloadAdminListings(), reloadContent()]);
       },
       updateSettings(nextSettings) {
         setSettings(normalizeSettings(nextSettings));
@@ -850,9 +867,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       listingDetailError,
       listingDetailLoading,
       listings,
+      featuredListings,
       listingsError,
       listingsLoading,
-      loadPublicListings,
       mobileOpen,
       page,
       reloadAdminListings,
