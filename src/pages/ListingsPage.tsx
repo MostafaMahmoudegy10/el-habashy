@@ -3,12 +3,11 @@ import type { ReactNode } from "react";
 import { FiGrid, FiList, FiLoader, FiSearch, FiSliders } from "react-icons/fi";
 import { statusLabel } from "../lib/i18n";
 import { getSectorTitle } from "../lib/sectors";
-import { stripRichText } from "../lib/richText";
 import { useApp } from "../context/AppContext";
 import { LazyImage } from "../components/LazyImage";
 import { ListingCard } from "../components/ListingCard";
 import { WhatsAppButton } from "../components/WhatsAppButton";
-import type { ListingCategory, ListingStatus } from "../types";
+import type { Listing, ListingCategory, ListingStatus } from "../types";
 
 type SortMode = "latest" | "views" | "whatsapp";
 
@@ -24,6 +23,7 @@ export function ListingsPage() {
     listingCategoryFilter,
     setListingCategoryFilter,
     selectListing,
+    searchListings,
   } = useApp();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<"all" | ListingCategory>(listingCategoryFilter);
@@ -31,29 +31,62 @@ export function ListingsPage() {
   const [city, setCity] = useState("all");
   const [sort, setSort] = useState<SortMode>("latest");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [searchResults, setSearchResults] = useState<Listing[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchRetry, setSearchRetry] = useState(0);
 
   useEffect(() => {
     setCategory(listingCategoryFilter);
   }, [listingCategoryFilter]);
 
+  useEffect(() => {
+    const term = search.trim();
+    if (!term) {
+      setSearchResults(null);
+      setSearchLoading(false);
+      setSearchError("");
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError("");
+    const timeout = window.setTimeout(() => {
+      void searchListings({
+        q: term,
+        category: category === "all" ? undefined : category,
+        status: status === "all" ? undefined : status,
+        sort: sort === "views"
+          ? "views,desc"
+          : sort === "whatsapp"
+            ? "whatsappClicks,desc"
+            : "createdAt,desc",
+      })
+        .then((rows) => {
+          if (!cancelled) setSearchResults(rows);
+        })
+        .catch((caught) => {
+          if (!cancelled) {
+            setSearchResults([]);
+            setSearchError(caught instanceof Error ? caught.message : (lang === "ar" ? "تعذر تنفيذ البحث." : "Search failed."));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [category, lang, search, searchListings, searchRetry, sort, status]);
+
   const cities = useMemo(() => Array.from(new Set(listings.map((listing) => listing.city[lang]))), [lang, listings]);
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const rows = listings.filter((listing) => {
-      const blob = [
-        listing.title[lang],
-        listing.summary[lang],
-        stripRichText(listing.description[lang]),
-        listing.city[lang],
-        listing.location[lang],
-        getSectorTitle(sectors, listing.category, lang),
-        statusLabel[listing.status][lang],
-      ]
-        .join(" ")
-        .toLowerCase();
-
+    const rows = (searchResults ?? listings).filter((listing) => {
       return (
-        (!term || blob.includes(term)) &&
         (category === "all" || listing.category === category) &&
         (status === "all" || listing.status === status) &&
         (city === "all" || listing.city[lang] === city)
@@ -65,7 +98,7 @@ export function ListingsPage() {
       if (sort === "whatsapp") return b.whatsappClicks - a.whatsappClicks;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [category, city, lang, listings, search, sectors, sort, status]);
+  }, [category, city, lang, listings, searchResults, sort, status]);
 
   const reset = () => {
     setSearch("");
@@ -74,6 +107,8 @@ export function ListingsPage() {
     setStatus("all");
     setCity("all");
     setSort("latest");
+    setSearchResults(null);
+    setSearchError("");
   };
 
   return (
@@ -157,13 +192,13 @@ export function ListingsPage() {
           </div>
         </div>
 
-        {listingsLoading ? (
+        {listingsLoading || searchLoading ? (
           <div className="grid min-h-80 place-items-center rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <span className="grid gap-3 text-sm font-black text-slate-600"><FiLoader className="mx-auto animate-spin text-3xl text-amber-600" />{lang === "ar" ? "جاري تحميل الإعلانات..." : "Loading listings..."}</span>
+            <span className="grid gap-3 text-sm font-black text-slate-600"><FiLoader className="mx-auto animate-spin text-3xl text-amber-600" />{searchLoading ? (lang === "ar" ? "جاري البحث في كل العروض..." : "Searching all listings...") : (lang === "ar" ? "جاري تحميل الإعلانات..." : "Loading listings...")}</span>
           </div>
-        ) : listingsError ? (
+        ) : listingsError || searchError ? (
           <div className="grid min-h-80 place-items-center rounded-[2rem] border border-rose-200 bg-rose-50 p-8 text-center shadow-sm">
-            <div><strong className="block text-lg font-black text-rose-700">{listingsError}</strong><button type="button" onClick={() => void reloadContent()} className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
+            <div><strong className="block text-lg font-black text-rose-700">{searchError || listingsError}</strong><button type="button" onClick={() => search.trim() ? setSearchRetry((value) => value + 1) : void reloadContent()} className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
           </div>
         ) : filtered.length ? (
           layout === "grid" ? (

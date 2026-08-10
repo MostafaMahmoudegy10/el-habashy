@@ -33,9 +33,8 @@ import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
 import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
 import { useAuth } from "../context/AuthContext";
-import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
+import type { AuthUser, ListingSubmissionMedia, PageResponse, UserRole } from "../lib/elHabashyApi";
 import { ApiError } from "../lib/api";
-import type { ListingSubmissionMedia } from "../lib/contentApi";
 import { mediaContentType, MediaProcessingFailedError } from "../lib/listingMediaApi";
 
 function requestError(error: unknown, fallback: string) {
@@ -1623,9 +1622,11 @@ function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete }: { k
   </div>;
 }
 
-function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit: (settings: AppSettings) => void }) {
+function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit: (settings: AppSettings) => Promise<AppSettings> }) {
   const { lang, t, sectors } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const previewAuctionTitle = lang === "ar" ? "مزاد عقاري" : "Property auction";
   const activeTemplate = lang === "ar" ? draft.whatsappMessageAr : draft.whatsappMessageEn;
   const preview = (activeTemplate || "{title}")
@@ -1637,15 +1638,26 @@ function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => setDraft(settings), [settings]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(draft);
+    setSaving(true);
+    setError("");
+    try {
+      setDraft(await onSubmit(draft));
+    } catch (caught) {
+      setError(requestError(caught, lang === "ar" ? "تعذر حفظ الإعدادات." : "Could not save settings."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <form onSubmit={submit} className="grid gap-6">
-      <Panel title={t.communicationSettings} icon={FiSettings} action={<Button type="submit" icon={FiSave}>{t.saveSettings}</Button>}>
+      <Panel title={t.communicationSettings} icon={FiSettings} action={<Button type="submit" icon={saving ? FiLoader : FiSave} disabled={saving}>{saving ? (lang === "ar" ? "جاري الحفظ..." : "Saving...") : t.saveSettings}</Button>}>
         <div className="grid gap-6">
+          {error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</div> : null}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
               <Field label={t.defaultWhatsappNumber} value={draft.whatsappNumber} onChange={(value) => patch("whatsappNumber", value)} required />
@@ -1768,10 +1780,10 @@ function Stat({ icon: Icon, label, value, hint }: { icon: IconType; label: strin
   );
 }
 
-function Button({ children, icon: Icon, onClick, type = "button" }: { children: ReactNode; icon: IconType; onClick?: () => void; type?: "button" | "submit" }) {
+function Button({ children, icon: Icon, onClick, type = "button", disabled = false }: { children: ReactNode; icon: IconType; onClick?: () => void; type?: "button" | "submit"; disabled?: boolean }) {
   return (
-    <button type={type} onClick={onClick} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800">
-      <Icon />
+    <button type={type} onClick={onClick} disabled={disabled} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+      <Icon className={disabled ? "animate-spin" : undefined} />
       {children}
     </button>
   );
