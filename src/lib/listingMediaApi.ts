@@ -69,7 +69,7 @@ function waitForNextPoll(signal?: AbortSignal) {
   });
 }
 
-async function pollVideo(
+async function pollMedia(
   request: AuthorizedRequest,
   listingId: number,
   initial: ListingMedia,
@@ -81,7 +81,7 @@ async function pollVideo(
   while (current.status !== "ready" && current.status !== "failed") {
     aborted(options.signal);
     if (Date.now() >= deadline) {
-      throw new Error("انتهت مدة متابعة الفيديو. يمكنك إعادة المحاولة أو مراجعة حالته لاحقًا.");
+      throw new Error("انتهت مدة متابعة رفع الملف. يمكنك مراجعة حالته لاحقًا.");
     }
     await waitForNextPoll(options.signal);
     try {
@@ -97,7 +97,7 @@ async function pollVideo(
     }
   }
   if (current.status === "failed") {
-    throw new MediaProcessingFailedError(current.failureReason || "فشلت معالجة الفيديو على الخادم.");
+    throw new MediaProcessingFailedError(current.failureReason || "فشلت معالجة الملف على الخادم.");
   }
   return current;
 }
@@ -120,9 +120,15 @@ export const listingMediaApi = {
       signal: options.signal,
     });
     options.onMedia?.(media);
-    if (role !== "video" || media.status === "ready") return media;
-    return pollVideo(request, listingId, media, options);
+    if (media.status === "ready") return media;
+    return pollMedia(request, listingId, media, options);
   },
+  watch: (
+    request: AuthorizedRequest,
+    listingId: number,
+    media: ListingMedia,
+    options: { signal?: AbortSignal; onMedia?: (media: ListingMedia) => void } = {},
+  ) => pollMedia(request, listingId, media, options),
   get: (request: AuthorizedRequest, listingId: number, mediaId: number, signal?: AbortSignal) =>
     request<ListingMedia>(`/api/v1/admin/listings/${listingId}/media/${mediaId}`, { signal }),
   delete: (request: AuthorizedRequest, listingId: number, mediaId: number) =>

@@ -16,17 +16,28 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const tokenRef = useRef<string | null>(null);
   const refreshRef = useRef<Promise<AuthResponse> | null>(null);
 
   const apply = useCallback((response: AuthResponse) => {
+    const explicitExpiry = response.expiresAt ? Date.parse(response.expiresAt) : Number.NaN;
+    const expiresAt = Number.isFinite(explicitExpiry)
+      ? explicitExpiry
+      : Date.now() + Math.max(0, response.expiresIn) * 1000;
     tokenRef.current = response.accessToken;
     setAccessToken(response.accessToken);
+    setAccessTokenExpiresAt(expiresAt);
     setUser(response.user);
     return response;
   }, []);
-  const clear = useCallback(() => { tokenRef.current = null; setAccessToken(null); setUser(null); }, []);
+  const clear = useCallback(() => {
+    tokenRef.current = null;
+    setAccessToken(null);
+    setAccessTokenExpiresAt(null);
+    setUser(null);
+  }, []);
 
   const refresh = useCallback(() => {
     if (!refreshRef.current) refreshRef.current = authApi.refresh().then(apply).finally(() => { refreshRef.current = null; });
@@ -36,6 +47,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     refresh().catch(clear).finally(() => setAuthLoading(false));
   }, [clear, refresh]);
+
+  useEffect(() => {
+    if (accessTokenExpiresAt === null) return;
+
+    const timeout = window.setTimeout(() => {
+      refresh().catch(clear);
+    }, Math.max(0, accessTokenExpiresAt - Date.now()));
+
+    return () => window.clearTimeout(timeout);
+  }, [accessTokenExpiresAt, clear, refresh]);
 
   const value = useMemo<AuthContextValue>(() => ({
     user, accessToken, authLoading,

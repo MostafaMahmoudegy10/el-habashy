@@ -21,6 +21,7 @@ import {
   adminContentApi,
   publicContentApi,
   type ListingResponse,
+  type ListingSubmissionMedia,
   type SectorResponse,
   type UpsertListingBody,
 } from "../lib/contentApi";
@@ -87,7 +88,7 @@ type AppContextValue = {
   toggleFavorite: (id: number) => void;
   reloadContent: () => Promise<void>;
   reloadAdminListings: () => Promise<void>;
-  addListing: (draft: ListingDraft) => Promise<Listing>;
+  addListing: (draft: ListingDraft, media?: ListingSubmissionMedia) => Promise<Listing>;
   updateListing: (id: number, draft: ListingDraft) => Promise<Listing>;
   deleteListing: (id: number) => Promise<void>;
   updateListingStatus: (id: number, status: ListingStatus) => Promise<Listing>;
@@ -95,6 +96,11 @@ type AppContextValue = {
     listingId: number,
     file: File,
     role: ListingMediaRole,
+    options?: { signal?: AbortSignal; onMedia?: (media: ListingMedia) => void },
+  ) => Promise<ListingMedia>;
+  watchListingMedia: (
+    listingId: number,
+    media: ListingMedia,
     options?: { signal?: AbortSignal; onMedia?: (media: ListingMedia) => void },
   ) => Promise<ListingMedia>;
   deleteListingMedia: (listingId: number, mediaId: number) => Promise<void>;
@@ -295,6 +301,11 @@ function optionalText(ar: string, en: string): LocalizedText | undefined {
   return { ar: ar.trim() || primary, en: en.trim() || primary };
 }
 
+function normalizePair(ar: string, en: string): LocalizedText {
+  const primary = ar.trim() || en.trim();
+  return { ar: ar.trim() || primary, en: en.trim() || primary };
+}
+
 function draftToListing(draft: ListingDraft, id: number, current?: Listing): Listing {
   const images = [draft.thumbnail, ...draft.gallery].filter(Boolean);
   return {
@@ -314,14 +325,7 @@ function draftToListing(draft: ListingDraft, id: number, current?: Listing): Lis
     measureLabel: draft.measureLabel,
     featured: draft.featured,
     images: images.length ? images : current?.images ?? [fallbackImage],
-    specs: current?.specs ?? [
-      { label: { ar: "القسم", en: "Category" }, value: { ar: draft.category, en: draft.category } },
-      {
-        label: { ar: "الموقع", en: "Location" },
-        value: { ar: draft.locationAr, en: draft.locationEn || draft.locationAr },
-      },
-      { label: { ar: "الكمية", en: "Quantity" }, value: { ar: draft.measureLabel, en: draft.measureLabel } },
-    ],
+    specs: draft.specs,
     createdAt: current?.createdAt ?? new Date().toISOString().slice(0, 10),
     publishDate: draft.publishDate,
     expireDate: draft.expireDate,
@@ -359,7 +363,12 @@ function draftToRequest(draft: ListingDraft, current?: Listing): UpsertListingBo
     priceLabel: listing.priceLabel,
     measureLabel: listing.measureLabel,
     featured: listing.featured,
-    specs: listing.specs,
+    specs: listing.specs
+      .map((spec) => ({
+        label: normalizePair(spec.label.ar, spec.label.en),
+        value: normalizePair(spec.value.ar, spec.value.en),
+      }))
+      .filter((spec) => spec.value.ar || spec.value.en),
     publishDate: listing.publishDate || undefined,
     expireDate: listing.expireDate || undefined,
     auctionDate: listing.auctionDate || undefined,
@@ -395,6 +404,7 @@ export function listingToDraft(listing?: Listing): ListingDraft {
     priceLabelAr: listing?.priceLabel.ar ?? "",
     priceLabelEn: listing?.priceLabel.en ?? "",
     measureLabel: listing?.measureLabel ?? "",
+    specs: listing?.specs ?? [],
     publishDate: listing?.publishDate ?? "",
     expireDate: listing?.expireDate ?? "",
     auctionDate: listing?.auctionDate ?? "",
@@ -667,8 +677,13 @@ export function AppProvider({ children }: PropsWithChildren) {
       },
       reloadContent,
       reloadAdminListings,
-      async addListing(draft) {
-        const response = await adminContentApi.createListing(authorizedRequest, draftToRequest(draft));
+      async addListing(draft, media) {
+        if (!media) throw new Error("A main listing image is required.");
+        const response = await adminContentApi.createListing(
+          authorizedRequest,
+          draftToRequest(draft),
+          media,
+        );
         const nextListing = listingFromResponse(response);
         setAdminListings((current) => [nextListing, ...current.filter((listing) => listing.id !== nextListing.id)]);
         setSelectedListingId(nextListing.id);
@@ -707,6 +722,22 @@ export function AppProvider({ children }: PropsWithChildren) {
           const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, options);
           await Promise.all([reloadAdminListings(), loadPublicListings()]);
           return media;
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") throw error;
+          await reloadAdminListings();
+          throw error;
+        }
+      },
+      async watchListingMedia(listingId, media, options) {
+        try {
+          const completed = await listingMediaApi.watch(
+            authorizedRequest,
+            listingId,
+            media,
+            options,
+          );
+          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          return completed;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") throw error;
           await reloadAdminListings();

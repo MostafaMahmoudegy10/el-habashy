@@ -33,6 +33,7 @@ import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, Li
 import { useAuth } from "../context/AuthContext";
 import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
 import { ApiError } from "../lib/api";
+import type { ListingSubmissionMedia } from "../lib/contentApi";
 import { mediaContentType, MediaProcessingFailedError } from "../lib/listingMediaApi";
 
 function requestError(error: unknown, fallback: string) {
@@ -528,6 +529,48 @@ type PendingMedia = {
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
 
+type SectorSpecField = {
+  key: string;
+  label: { ar: string; en: string };
+};
+
+const sectorSpecFields: Record<ListingCategory, SectorSpecField[]> = {
+  "real-estate": [
+    { key: "area", label: { ar: "المساحة", en: "Area" } },
+    { key: "property-type", label: { ar: "نوع العقار", en: "Property type" } },
+    { key: "rooms", label: { ar: "عدد الغرف", en: "Rooms" } },
+    { key: "bathrooms", label: { ar: "عدد الحمامات", en: "Bathrooms" } },
+    { key: "floors", label: { ar: "عدد الأدوار", en: "Floors" } },
+  ],
+  movables: [
+    { key: "quantity", label: { ar: "الكمية", en: "Quantity" } },
+    { key: "condition", label: { ar: "الحالة", en: "Condition" } },
+    { key: "brand", label: { ar: "الماركة", en: "Brand" } },
+    { key: "model", label: { ar: "الموديل", en: "Model" } },
+  ],
+  cars: [
+    { key: "make", label: { ar: "الماركة", en: "Make" } },
+    { key: "model", label: { ar: "الموديل", en: "Model" } },
+    { key: "year", label: { ar: "سنة الصنع", en: "Year" } },
+    { key: "mileage", label: { ar: "الكيلومترات", en: "Mileage" } },
+    { key: "transmission", label: { ar: "ناقل الحركة", en: "Transmission" } },
+  ],
+  antiques: [
+    { key: "type", label: { ar: "النوع", en: "Type" } },
+    { key: "material", label: { ar: "الخامة", en: "Material" } },
+    { key: "period", label: { ar: "الحقبة", en: "Period" } },
+    { key: "condition", label: { ar: "الحالة", en: "Condition" } },
+  ],
+  scrap: [
+    { key: "material", label: { ar: "الخامة", en: "Material" } },
+    { key: "weight", label: { ar: "الوزن", en: "Weight" } },
+    { key: "condition", label: { ar: "الحالة", en: "Condition" } },
+  ],
+  other: [
+    { key: "details", label: { ar: "تفاصيل إضافية", en: "Additional details" } },
+  ],
+};
+
 function mediaKey(file: File, role: ListingMediaRole) {
   return `${role}-${file.name}-${file.size}-${file.lastModified}`;
 }
@@ -562,10 +605,10 @@ function ListingForm({
   submitLabel: string;
   initial?: ListingDraft;
   listing?: Listing;
-  onSubmit: (draft: ListingDraft) => Promise<Listing>;
+  onSubmit: (draft: ListingDraft, media?: ListingSubmissionMedia) => Promise<Listing>;
   onFinished: () => void;
 }) {
-  const { lang, t, sectors, uploadListingMedia, deleteListingMedia } = useApp();
+  const { lang, t, sectors, uploadListingMedia, watchListingMedia, deleteListingMedia } = useApp();
   const [draft, setDraft] = useState<ListingDraft>(initial);
   const [saving, setSaving] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
@@ -579,6 +622,27 @@ function ListingForm({
 
   const patchDraft = <K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const changeCategory = (category: ListingCategory) => {
+    setDraft((current) => current.category === category
+      ? current
+      : { ...current, category, specs: [] });
+  };
+
+  const specValue = (field: SectorSpecField, language: "ar" | "en") =>
+    draft.specs.find((spec) => spec.label.en === field.label.en)?.value[language] ?? "";
+
+  const patchSpec = (field: SectorSpecField, language: "ar" | "en", value: string) => {
+    setDraft((current) => {
+      const existing = current.specs.find((spec) => spec.label.en === field.label.en);
+      const next = existing
+        ? current.specs.map((spec) => spec === existing
+          ? { ...spec, value: { ...spec.value, [language]: value } }
+          : spec)
+        : [...current.specs, { label: field.label, value: { ar: "", en: "", [language]: value } }];
+      return { ...current, specs: next };
+    });
   };
 
   const patchPending = (key: string, patch: Partial<PendingMedia>) => {
@@ -614,22 +678,87 @@ function ListingForm({
     }
   };
 
+  const watchOne = async (listingId: number, item: PendingMedia, initialMedia: ListingMedia) => {
+    if (!uploadController.current || uploadController.current.signal.aborted) {
+      uploadController.current = new AbortController();
+    }
+    patchPending(item.key, {
+      status: initialMedia.status,
+      progress: initialMedia.progress,
+      media: initialMedia,
+      mediaId: initialMedia.id,
+      error: undefined,
+    });
+    try {
+      const media = await watchListingMedia(listingId, initialMedia, {
+        signal: uploadController.current.signal,
+        onMedia(serverMedia) {
+          patchPending(item.key, {
+            status: serverMedia.status,
+            progress: serverMedia.progress,
+            media: serverMedia,
+            mediaId: serverMedia.id,
+          });
+        },
+      });
+      patchPending(item.key, { status: media.status, progress: media.progress, media, mediaId: media.id });
+    } catch (caught) {
+      if (caught instanceof Error && caught.name === "AbortError") return;
+      patchPending(item.key, {
+        status: caught instanceof MediaProcessingFailedError ? "failed" : "error",
+        error: requestError(caught, "تعذر متابعة رفع الملف."),
+      });
+    }
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (mediaBusy || savedListing) return;
+    const selected = pendingMedia.filter((item) => item.status === "selected");
+    const thumbnail = selected.find((item) => item.role === "thumbnail");
+    if (!listing && !thumbnail) {
+      setError(lang === "ar" ? "الصورة الرئيسية مطلوبة قبل نشر المزاد." : "A main image is required before publishing.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      const persisted = await onSubmit(draft);
+      const submissionMedia = thumbnail
+        ? {
+          thumbnail: thumbnail.file,
+          gallery: selected.filter((item) => item.role === "gallery").map((item) => item.file),
+          video: selected.find((item) => item.role === "video")?.file,
+        }
+        : undefined;
+      const persisted = await onSubmit(draft, listing ? undefined : submissionMedia);
       setSavedListing(persisted);
       setSaving(false);
       uploadController.current = new AbortController();
-      const selected = pendingMedia.filter((item) => item.status === "selected");
       if (!selected.length) {
         onFinished();
         return;
       }
-      for (const item of selected) await uploadOne(persisted.id, item);
+
+      if (listing) {
+        for (const item of selected) await uploadOne(persisted.id, item);
+        return;
+      }
+
+      const unmatchedServerMedia = [...(persisted.media ?? [])];
+      const monitoring = selected.flatMap((item) => {
+        const index = unmatchedServerMedia.findIndex((media) =>
+          media.role === item.role && media.fileName === item.file.name);
+        if (index < 0) {
+          patchPending(item.key, {
+            status: "error",
+            error: lang === "ar" ? "الخادم لم يُرجع حالة هذا الملف." : "The server did not return this file status.",
+          });
+          return [];
+        }
+        const [serverMedia] = unmatchedServerMedia.splice(index, 1);
+        return [watchOne(persisted.id, item, serverMedia)];
+      });
+      await Promise.all(monitoring);
     } catch (caught) {
       setError(requestError(caught, "تعذر حفظ الإعلان."));
     } finally {
@@ -736,7 +865,7 @@ function ListingForm({
           </div>
           <button disabled={saving || mediaBusy || Boolean(savedListing)} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60">
             {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
-            {saving ? (lang === "ar" ? "جاري حفظ البيانات..." : "Saving metadata...") : savedListing ? (lang === "ar" ? "تم حفظ البيانات" : "Metadata saved") : submitLabel}
+            {saving ? (lang === "ar" ? "جاري نشر المزاد..." : "Publishing listing...") : savedListing ? (lang === "ar" ? "تم نشر المزاد" : "Listing published") : submitLabel}
           </button>
         </div>
       </div>
@@ -747,7 +876,7 @@ function ListingForm({
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.titleAr} value={draft.titleAr} onChange={(value) => patchDraft("titleAr", value)} required />
               <Field label={t.titleEn} value={draft.titleEn} onChange={(value) => patchDraft("titleEn", value)} />
-              <Select label={t.category} value={draft.category} onChange={(value) => patchDraft("category", value as ListingCategory)}>
+              <Select label={t.category} value={draft.category} onChange={(value) => changeCategory(value as ListingCategory)}>
                 {sectors.map((category) => (
                   <option key={category.id} value={category.id}>{category.title[lang]}</option>
                 ))}
@@ -759,7 +888,9 @@ function ListingForm({
               </Select>
               <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 md:col-span-2">
                 <input type="checkbox" checked={draft.featured} onChange={(event) => patchDraft("featured", event.target.checked)} />
-                {t.featured}
+                {lang === "ar"
+                  ? "مميز في الصفحة الرئيسية (الهيرو والكاروسيل)"
+                  : "Featured on the home page (hero and carousel)"}
               </label>
             </div>
           </FormSection>
@@ -773,6 +904,33 @@ function ListingForm({
               <Field label={t.valueAr} value={draft.priceLabelAr} onChange={(value) => patchDraft("priceLabelAr", value)} />
               <Field label={t.valueEn} value={draft.priceLabelEn} onChange={(value) => patchDraft("priceLabelEn", value)} />
               <Field label={t.measure} value={draft.measureLabel} onChange={(value) => patchDraft("measureLabel", value)} />
+            </div>
+          </FormSection>
+
+          <FormSection
+            title={lang === "ar" ? "بيانات خاصة بنوع المزاد" : "Category-specific details"}
+            icon={FiGrid}
+          >
+            <p className="mb-4 text-sm font-bold leading-7 text-slate-600">
+              {lang === "ar"
+                ? "تظهر هنا فقط الحقول المناسبة للقسم المختار، ولن تظهر الحقول الفارغة في صفحة المزاد."
+                : "Only fields relevant to the selected category appear here; empty fields are not published."}
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              {sectorSpecFields[draft.category].flatMap((field) => [
+                <Field
+                  key={`${field.key}-ar`}
+                  label={`${field.label.ar} (AR)`}
+                  value={specValue(field, "ar")}
+                  onChange={(value) => patchSpec(field, "ar", value)}
+                />,
+                <Field
+                  key={`${field.key}-en`}
+                  label={`${field.label.en} (EN)`}
+                  value={specValue(field, "en")}
+                  onChange={(value) => patchSpec(field, "en", value)}
+                />,
+              ])}
             </div>
           </FormSection>
 
@@ -813,8 +971,8 @@ function ListingForm({
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
             <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-7 text-sky-900">
               {lang === "ar"
-                ? "سيتم حفظ بيانات الإعلان أولًا، ثم إرسال الملفات إلى الباك. الصور تُحفظ فور اكتمال رفعها، والفيديو الكبير يعالجه الباك في الخلفية على أجزاء مع عرض تقدمه هنا. فشل ملف لا يلغي إنشاء الإعلان ويمكن إعادة محاولته وحده."
-                : "Listing metadata is saved first, then files are sent through the backend. Images finish in the request, while large videos are processed in background chunks with server progress shown here. A failed file does not roll back the listing and can be retried separately."}
+                ? "عند الضغط على حفظ ونشر، تُرسل بيانات المزاد والصورة الرئيسية والجاليري والفيديو في طلب واحد. الباك يحفظ المزاد ثم يرفع كل الملفات إلى Cloudinary في الخلفية ويعرض تقدمها هنا."
+                : "Save & publish sends the listing, main image, gallery, and video in one request. The backend saves the listing, then uploads every file to Cloudinary in background workers and reports progress here."}
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               <FileInput disabled={Boolean(savedListing)} accept="image/jpeg,image/png,image/webp,image/gif" label={t.thumbnail} button={t.chooseImage} onChange={(event) => { chooseMedia("thumbnail", event.target.files); event.target.value = ""; }} />

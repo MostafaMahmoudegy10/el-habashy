@@ -47,6 +47,7 @@ export type ListingMedia = {
   type: ListingMediaType;
   role: ListingMediaRole;
   status: ListingMediaStatus;
+  publicId?: string;
   url?: string;
   fileName: string;
   contentType: string;
@@ -115,6 +116,7 @@ export type ListingDraft = {
   priceLabelAr: string;
   priceLabelEn: string;
   measureLabel: string;
+  specs: Specification[];
   publishDate: string;
   expireDate: string;
   auctionDate: string;
