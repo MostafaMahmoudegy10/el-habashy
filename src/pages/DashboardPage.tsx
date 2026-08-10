@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
   FiAlertCircle,
+  FiArrowLeft,
+  FiArrowRight,
   FiBarChart2,
   FiCalendar,
   FiCheckCircle,
@@ -31,9 +33,8 @@ import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
 import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
 import { useAuth } from "../context/AuthContext";
-import type { AuthUser, PageResponse, UserRole } from "../lib/authApi";
+import type { AuthUser, ListingSubmissionMedia, PageResponse, UserRole } from "../lib/elHabashyApi";
 import { ApiError } from "../lib/api";
-import type { ListingSubmissionMedia } from "../lib/contentApi";
 import { mediaContentType, MediaProcessingFailedError } from "../lib/listingMediaApi";
 
 function requestError(error: unknown, fallback: string) {
@@ -524,6 +525,7 @@ type PendingMedia = {
   error?: string;
   media?: ListingMedia;
   mediaId?: number;
+  previewUrl?: string;
 };
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -584,11 +586,11 @@ function mediaSize(bytes: number) {
 function validateMediaFile(file: File, role: ListingMediaRole) {
   const contentType = mediaContentType(file);
   if (role === "video") {
-    if (!contentType.startsWith("video/")) return "صيغة الفيديو غير مدعومة.";
+    if (!["video/mp4", "video/webm", "video/quicktime", "video/x-matroska"].includes(contentType)) return "صيغة الفيديو غير مدعومة.";
     if (file.size > MAX_VIDEO_BYTES) return "حجم الفيديو يجب ألا يتجاوز 5 GB.";
     return "";
   }
-  if (!contentType.startsWith("image/")) return "صيغة الصورة غير مدعومة.";
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(contentType)) return "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP أو GIF.";
   if (file.size > MAX_IMAGE_BYTES) return "حجم كل صورة يجب ألا يتجاوز 20 MB.";
   return "";
 }
@@ -615,10 +617,63 @@ function ListingForm({
   const [savedListing, setSavedListing] = useState<Listing | null>(null);
   const [deletingMediaId, setDeletingMediaId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [step, setStep] = useState(0);
   const uploadController = useRef<AbortController | null>(null);
+  const pendingMediaRef = useRef<PendingMedia[]>([]);
   const mediaBusy = pendingMedia.some((item) => ["sending", "uploading", "processing"].includes(item.status));
 
-  useEffect(() => () => uploadController.current?.abort(), []);
+  useEffect(() => {
+    pendingMediaRef.current = pendingMedia;
+  }, [pendingMedia]);
+
+  useEffect(() => () => {
+    uploadController.current?.abort();
+    pendingMediaRef.current.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+  }, []);
+
+  const wizardSteps = [
+    { label: lang === "ar" ? "الأساسيات" : "Basics", hint: lang === "ar" ? "العنوان والقسم وحالة الظهور" : "Title, category and visibility", icon: FiEdit3 },
+    { label: lang === "ar" ? "تفاصيل الأصل" : "Asset details", hint: lang === "ar" ? "الموقع والقيمة وبيانات القسم" : "Location, value and category fields", icon: FiLayers },
+    { label: lang === "ar" ? "جلسة المزاد" : "Auction", hint: lang === "ar" ? "المواعيد والجهة ومكان الجلسة" : "Dates, beneficiary and venue", icon: FiCalendar },
+    { label: lang === "ar" ? "المحتوى" : "Content", hint: lang === "ar" ? "الملخص والوصف والملاحظات" : "Summary, description and notes", icon: FiFileText },
+    { label: lang === "ar" ? "الصور والفيديو" : "Media", hint: lang === "ar" ? "الغلاف والجاليري والفيديو" : "Cover, gallery and video", icon: FiUploadCloud },
+    { label: lang === "ar" ? "المعاينة والنشر" : "Review & publish", hint: lang === "ar" ? "شكل الإعلان ونتيجة البحث" : "Listing and search previews", icon: FiEye },
+  ];
+
+  const validateStep = (index: number) => {
+    if (index === 0 && !draft.titleAr.trim() && !draft.titleEn.trim()) {
+      return lang === "ar" ? "اكتب عنوان المزاد قبل الانتقال للخطوة التالية." : "Add the listing title before continuing.";
+    }
+    if (index === 1) {
+      if (!draft.cityAr.trim() && !draft.cityEn.trim()) return lang === "ar" ? "اكتب المدينة." : "Add the city.";
+      if (!draft.locationAr.trim() && !draft.locationEn.trim()) return lang === "ar" ? "اكتب موقع المعاينة." : "Add the inspection location.";
+      if (!draft.priceLabelAr.trim() && !draft.priceLabelEn.trim()) return lang === "ar" ? "اكتب قيمة أو طريقة تسعير المزاد." : "Add the auction value or pricing label.";
+      if (!draft.measureLabel.trim()) return lang === "ar" ? "اكتب المساحة أو الكمية المختصرة." : "Add the short area or quantity label.";
+    }
+    if (index === 3) {
+      if (!draft.summaryAr.trim() && !draft.summaryEn.trim()) return lang === "ar" ? "اكتب ملخص المزاد." : "Add the listing summary.";
+      if (!draft.descriptionAr.trim() && !draft.descriptionEn.trim()) return lang === "ar" ? "اكتب وصف المزاد." : "Add the listing description.";
+    }
+    if (index === 4 && !listing && !pendingMedia.some((item) => item.role === "thumbnail")) {
+      return lang === "ar" ? "اختار الصورة الرئيسية قبل المعاينة والنشر." : "Choose the main image before review and publishing.";
+    }
+    return "";
+  };
+
+  const goNext = () => {
+    const validationError = validateStep(step);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError("");
+    setStep((current) => Math.min(wizardSteps.length - 1, current + 1));
+  };
+
+  const goBack = () => {
+    setError("");
+    setStep((current) => Math.max(0, current - 1));
+  };
 
   const patchDraft = <K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -713,6 +768,10 @@ function ListingForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (step < wizardSteps.length - 1) {
+      goNext();
+      return;
+    }
     if (mediaBusy || savedListing) return;
     const selected = pendingMedia.filter((item) => item.status === "selected");
     const thumbnail = selected.find((item) => item.role === "thumbnail");
@@ -732,6 +791,7 @@ function ListingForm({
         : undefined;
       const persisted = await onSubmit(draft, listing ? undefined : submissionMedia);
       setSavedListing(persisted);
+      setStep(4);
       setSaving(false);
       uploadController.current = new AbortController();
       if (!selected.length) {
@@ -770,6 +830,11 @@ function ListingForm({
     const chosen = Array.from(files ?? []);
     if (!chosen.length) return;
     const relevant = role === "gallery" ? chosen : chosen.slice(0, 1);
+    const currentGalleryCount = pendingMedia.filter((item) => item.role === "gallery").length;
+    if (role === "gallery" && currentGalleryCount + relevant.length > 20) {
+      setError(lang === "ar" ? "يمكن اختيار 20 صورة جاليري بحد أقصى." : "You can select up to 20 gallery images.");
+      return;
+    }
     const invalid = relevant.map((file) => validateMediaFile(file, role)).find(Boolean);
     if (invalid) {
       setError(invalid);
@@ -786,11 +851,18 @@ function ListingForm({
       role,
       status: "selected",
       progress: 0,
+      previewUrl: URL.createObjectURL(file),
     }));
     setError("");
-    setPendingMedia((current) => role === "gallery"
-      ? [...current.filter((item) => !entries.some((entry) => entry.key === item.key)), ...entries]
-      : [...current.filter((item) => item.role !== role), ...entries]);
+    setPendingMedia((current) => {
+      if (role === "gallery") {
+        const duplicated = current.filter((item) => entries.some((entry) => entry.key === item.key));
+        duplicated.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+        return [...current.filter((item) => !entries.some((entry) => entry.key === item.key)), ...entries];
+      }
+      current.filter((item) => item.role === role).forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+      return [...current.filter((item) => item.role !== role), ...entries];
+    });
   };
 
   const retryMedia = async (item: PendingMedia) => {
@@ -831,7 +903,9 @@ function ListingForm({
     draft.summaryAr ||
     draft.summaryEn ||
     (lang === "ar" ? "ملخص المزاد يظهر هنا أثناء الكتابة." : "Auction summary appears here while typing.");
-  const previewImage = draft.thumbnail || draft.gallery[0] || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=84";
+  const selectedThumbnailPreview = pendingMedia.find((item) => item.role === "thumbnail")?.previewUrl;
+  const selectedGalleryPreview = pendingMedia.find((item) => item.role === "gallery")?.previewUrl;
+  const previewImage = selectedThumbnailPreview || draft.thumbnail || selectedGalleryPreview || draft.gallery[0] || "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=84";
   const slugPreview = makeSlug(draft.seoSlug || draft.titleEn || draft.titleAr || "auction");
   const activeSeoTitle =
     lang === "ar"
@@ -863,15 +937,49 @@ function ListingForm({
               {lang === "ar" ? "املأ البيانات حسب الأقسام، وراجع المعاينة والـ SEO قبل الحفظ." : "Fill each section, then review the preview and SEO before saving."}
             </p>
           </div>
-          <button disabled={saving || mediaBusy || Boolean(savedListing)} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60">
-            {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
-            {saving ? (lang === "ar" ? "جاري نشر المزاد..." : "Publishing listing...") : savedListing ? (lang === "ar" ? "تم نشر المزاد" : "Listing published") : submitLabel}
-          </button>
+          <div className="min-w-48 rounded-2xl border border-white/10 bg-white/10 p-4">
+            <div className="flex items-center justify-between gap-4 text-xs font-black text-slate-300">
+              <span>{lang === "ar" ? "تقدم الإضافة" : "Creation progress"}</span>
+              <span>{step + 1}/{wizardSteps.length}</span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-amber-400 transition-all duration-500" style={{ width: `${((step + 1) / wizardSteps.length) * 100}%` }} />
+            </div>
+          </div>
         </div>
       </div>
 
+      <nav className="overflow-x-auto rounded-[2rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-950/5" aria-label={lang === "ar" ? "خطوات إضافة المزاد" : "Listing creation steps"}>
+        <ol className="grid min-w-[760px] grid-cols-6 gap-2">
+          {wizardSteps.map((item, index) => {
+            const Icon = item.icon;
+            const active = index === step;
+            const complete = index < step;
+            return (
+              <li key={item.label}>
+                <button
+                  type="button"
+                  disabled={index > step}
+                  onClick={() => index < step && setStep(index)}
+                  className={`flex w-full items-center gap-3 rounded-2xl p-3 text-start transition ${active ? "bg-slate-950 text-white shadow-lg" : complete ? "bg-emerald-50 text-emerald-900 hover:bg-emerald-100" : "bg-slate-50 text-slate-400"}`}
+                >
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${active ? "bg-amber-400 text-slate-950" : complete ? "bg-emerald-600 text-white" : "bg-white"}`}>
+                    {complete ? <FiCheckCircle /> : <Icon />}
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="block truncate text-sm font-black">{item.label}</strong>
+                    <small className={`mt-0.5 block truncate text-[10px] font-bold ${active ? "text-slate-300" : "opacity-70"}`}>{item.hint}</small>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid gap-6">
+          {step === 0 ? (
           <FormSection title={t.basicData} icon={FiEdit3}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.titleAr} value={draft.titleAr} onChange={(value) => patchDraft("titleAr", value)} required />
@@ -894,7 +1002,10 @@ function ListingForm({
               </label>
             </div>
           </FormSection>
+          ) : null}
 
+          {step === 1 ? (
+          <>
           <FormSection title={t.locationValueData} icon={FiLayers}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.cityAr} value={draft.cityAr} onChange={(value) => patchDraft("cityAr", value)} />
@@ -933,7 +1044,10 @@ function ListingForm({
               ])}
             </div>
           </FormSection>
+          </>
+          ) : null}
 
+          {step === 2 ? (
           <FormSection title={t.auctionData} icon={FiCalendar}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={t.auctionPublishDate} type="date" value={draft.publishDate} onChange={(value) => patchDraft("publishDate", value)} />
@@ -952,7 +1066,9 @@ function ListingForm({
               <Field label={`${t.listingWhatsappOverride} (${t.optionalOverride})`} value={draft.whatsappPhone} onChange={(value) => patchDraft("whatsappPhone", value)} />
             </div>
           </FormSection>
+          ) : null}
 
+          {step === 3 ? (
           <FormSection title={t.contentData} icon={FiFileText}>
             <div className="grid gap-4 md:grid-cols-2">
               <Textarea label={t.summaryAr} value={draft.summaryAr} onChange={(value) => patchDraft("summaryAr", value)} />
@@ -967,7 +1083,9 @@ function ListingForm({
               <Textarea label={`${t.auctionNotes} EN`} value={draft.notesEn} onChange={(value) => patchDraft("notesEn", value)} />
             </div>
           </FormSection>
+          ) : null}
 
+          {step === 4 ? (
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
             <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-7 text-sky-900">
               {lang === "ar"
@@ -1002,11 +1120,20 @@ function ListingForm({
                 <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات المختارة وحالة الرفع" : "Selected files and upload status"}</strong>
                 {pendingMedia.map((item) => (
                   <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
+                      {item.previewUrl ? (
+                        item.role === "video" ? (
+                          <video src={item.previewUrl} muted playsInline className="aspect-square w-24 rounded-2xl bg-slate-950 object-cover" />
+                        ) : (
+                          <LazyImage src={item.previewUrl} alt="" className="aspect-square w-24 rounded-2xl object-cover" />
+                        )
+                      ) : null}
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status === "error" && item.media ? item.media.status : item.status} />{item.status === "error" && item.media ? <MediaBadge value="client-error" /> : null}</div><small className="mt-1 block font-bold text-slate-500">{mediaContentType(item.file)} · {mediaSize(item.file.size)}</small></div>
                       <div className="flex gap-2">
                         {(item.status === "failed" || item.status === "error") && savedListing ? <button disabled={mediaBusy || deletingMediaId === item.mediaId} type="button" onClick={() => void retryMedia(item)} className="h-10 rounded-xl bg-amber-100 px-4 text-xs font-black text-amber-900">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button> : null}
-                        {item.status === "selected" && !savedListing ? <button type="button" onClick={() => setPendingMedia((current) => current.filter((entry) => entry.key !== item.key))} className="h-10 rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-700">{lang === "ar" ? "إزالة" : "Remove"}</button> : null}
+                        {item.status === "selected" && !savedListing ? <button type="button" onClick={() => { if (item.previewUrl) URL.revokeObjectURL(item.previewUrl); setPendingMedia((current) => current.filter((entry) => entry.key !== item.key)); }} className="h-10 rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-700">{lang === "ar" ? "إزالة" : "Remove"}</button> : null}
+                      </div>
                       </div>
                     </div>
                     {item.status !== "selected" ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all ${item.status === "failed" || item.status === "error" ? "bg-rose-500" : item.status === "ready" ? "bg-emerald-500" : "bg-amber-500"}`} style={{ width: `${item.status === "failed" || item.status === "error" || item.status === "sending" ? Math.max(4, item.progress) : item.progress}%` }} /></div> : null}
@@ -1023,9 +1150,9 @@ function ListingForm({
               </div>
             ) : null}
           </FormSection>
+          ) : null}
 
-          {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{error}</div> : null}
-
+          {step === 5 ? (
           <FormSection title="SEO" icon={FiSearch}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label={`${t.seoTitle} AR`} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
@@ -1045,6 +1172,41 @@ function ListingForm({
               </div>
             </div>
           </FormSection>
+          ) : null}
+
+          {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-black text-rose-700">{error}</div> : null}
+
+          <div className="flex flex-col-reverse justify-between gap-3 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-950/5 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={step === 0 || saving || mediaBusy || Boolean(savedListing)}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 text-sm font-black text-slate-700 transition hover:border-amber-300 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {lang === "ar" ? <FiArrowRight /> : <FiArrowLeft />}
+              {lang === "ar" ? "الخطوة السابقة" : "Previous step"}
+            </button>
+            {step < wizardSteps.length - 1 ? (
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={saving || mediaBusy || Boolean(savedListing)}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-7 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {lang === "ar" ? "حفظ الخطوة والمتابعة" : "Save step & continue"}
+                {lang === "ar" ? <FiArrowLeft /> : <FiArrowRight />}
+              </button>
+            ) : (
+              <button
+                disabled={saving || mediaBusy || Boolean(savedListing)}
+                type="submit"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-7 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-60"
+              >
+                {saving ? <FiLoader className="animate-spin" /> : <FiSave />}
+                {saving ? (lang === "ar" ? "جاري نشر المزاد..." : "Publishing listing...") : submitLabel}
+              </button>
+            )}
+          </div>
         </div>
 
         <aside className="grid h-fit gap-4 2xl:sticky 2xl:top-28">
@@ -1460,9 +1622,11 @@ function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete }: { k
   </div>;
 }
 
-function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit: (settings: AppSettings) => void }) {
+function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit: (settings: AppSettings) => Promise<AppSettings> }) {
   const { lang, t, sectors } = useApp();
   const [draft, setDraft] = useState<AppSettings>(settings);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const previewAuctionTitle = lang === "ar" ? "مزاد عقاري" : "Property auction";
   const activeTemplate = lang === "ar" ? draft.whatsappMessageAr : draft.whatsappMessageEn;
   const preview = (activeTemplate || "{title}")
@@ -1474,15 +1638,26 @@ function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit
     setDraft((current) => ({ ...current, [key]: value }));
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => setDraft(settings), [settings]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit(draft);
+    setSaving(true);
+    setError("");
+    try {
+      setDraft(await onSubmit(draft));
+    } catch (caught) {
+      setError(requestError(caught, lang === "ar" ? "تعذر حفظ الإعدادات." : "Could not save settings."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <form onSubmit={submit} className="grid gap-6">
-      <Panel title={t.communicationSettings} icon={FiSettings} action={<Button type="submit" icon={FiSave}>{t.saveSettings}</Button>}>
+      <Panel title={t.communicationSettings} icon={FiSettings} action={<Button type="submit" icon={saving ? FiLoader : FiSave} disabled={saving}>{saving ? (lang === "ar" ? "جاري الحفظ..." : "Saving...") : t.saveSettings}</Button>}>
         <div className="grid gap-6">
+          {error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</div> : null}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
               <Field label={t.defaultWhatsappNumber} value={draft.whatsappNumber} onChange={(value) => patch("whatsappNumber", value)} required />
@@ -1605,10 +1780,10 @@ function Stat({ icon: Icon, label, value, hint }: { icon: IconType; label: strin
   );
 }
 
-function Button({ children, icon: Icon, onClick, type = "button" }: { children: ReactNode; icon: IconType; onClick?: () => void; type?: "button" | "submit" }) {
+function Button({ children, icon: Icon, onClick, type = "button", disabled = false }: { children: ReactNode; icon: IconType; onClick?: () => void; type?: "button" | "submit"; disabled?: boolean }) {
   return (
-    <button type={type} onClick={onClick} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800">
-      <Icon />
+    <button type={type} onClick={onClick} disabled={disabled} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+      <Icon className={disabled ? "animate-spin" : undefined} />
       {children}
     </button>
   );

@@ -7,6 +7,7 @@ import type {
   LocalizedText,
   Sector,
   Specification,
+  AppSettings,
 } from "../types";
 
 export type SectorResponse = {
@@ -30,6 +31,17 @@ export type ListingQuery = {
   page?: number;
   size?: number;
   sort?: string;
+};
+
+export type ListingEngagementResponse = {
+  listingId: number;
+  slug: string;
+  views: number;
+  whatsappClicks: number;
+};
+
+export type AppSettingsResponse = AppSettings & {
+  updatedAt: string;
 };
 
 export type UpsertListingBody = {
@@ -81,6 +93,12 @@ export const publicContentApi = {
     apiRequest<PageResponse<ListingResponse>>(`/api/v1/public/listings${queryString(query)}`),
   listing: (slug: string) =>
     apiRequest<ListingResponse>(`/api/v1/public/listings/${encodeURIComponent(slug)}`),
+  trackWhatsappClick: (slug: string) =>
+    apiRequest<ListingEngagementResponse>(
+      `/api/v1/public/listings/${encodeURIComponent(slug)}/whatsapp-click`,
+      { method: "POST" },
+    ),
+  settings: () => apiRequest<AppSettingsResponse>("/api/v1/public/settings"),
 };
 
 export type AuthorizedRequest = <T>(
@@ -121,4 +139,11 @@ export const adminContentApi = {
     code: ListingCategory,
     sector: Pick<Sector, "title" | "description">,
   ) => request<SectorResponse>(`/api/v1/admin/sectors/${code}`, { method: "PATCH", body: sector }),
+  settings: (request: AuthorizedRequest) =>
+    request<AppSettingsResponse>("/api/v1/admin/settings"),
+  updateSettings: (request: AuthorizedRequest, settings: AppSettings) =>
+    request<AppSettingsResponse>("/api/v1/admin/settings", {
+      method: "PUT",
+      body: settings,
+    }),
 };

@@ -1,6 +1,6 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
-import { authApi, AuthResponse, AuthUser } from "../lib/authApi";
+import { elHabashyApi, type AuthResponse, type AuthUser } from "../lib/elHabashyApi";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refresh = useCallback(() => {
-    if (!refreshRef.current) refreshRef.current = authApi.refresh().then(apply).finally(() => { refreshRef.current = null; });
+    if (!refreshRef.current) refreshRef.current = elHabashyApi.auth.refresh().then(apply).finally(() => { refreshRef.current = null; });
     return refreshRef.current;
   }, [apply]);
 
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user, accessToken, authLoading,
-    login: (email, password) => authApi.login({ email, password }).then(apply),
-    async logout() { try { await authApi.logout(); } finally { clear(); } },
+    login: (email, password) => elHabashyApi.auth.login({ email, password }).then(apply),
+    async logout() { try { await elHabashyApi.auth.logout(); } finally { clear(); } },
     async authorizedRequest<T>(path: string, init = {}) {
       try {
         return await apiRequest<T>(path, { ...init, token: tokenRef.current });

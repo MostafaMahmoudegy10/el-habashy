@@ -18,14 +18,13 @@ import { copy } from "../lib/i18n";
 import { initialServices } from "../data/services";
 import { sanitizeRichText } from "../lib/richText";
 import {
-  adminContentApi,
-  publicContentApi,
+  elHabashyApi,
+  type ListingQuery,
   type ListingResponse,
   type ListingSubmissionMedia,
   type SectorResponse,
   type UpsertListingBody,
-} from "../lib/contentApi";
-import { listingMediaApi } from "../lib/listingMediaApi";
+} from "../lib/elHabashyApi";
 import type {
   AboutContent,
   AboutSection,
@@ -54,6 +53,7 @@ type AppContextValue = {
   dashboardView: DashboardView;
   mobileOpen: boolean;
   listings: Listing[];
+  featuredListings: Listing[];
   listingsLoading: boolean;
   listingsError: string;
   adminListings: Listing[];
@@ -85,6 +85,7 @@ type AppContextValue = {
   selectListing: (id: number) => void;
   getWhatsAppUrl: (listing: Listing, phone?: string) => string;
   trackWhatsApp: (id: number) => void;
+  searchListings: (query: ListingQuery) => Promise<Listing[]>;
   toggleFavorite: (id: number) => void;
   reloadContent: () => Promise<void>;
   reloadAdminListings: () => Promise<void>;
@@ -104,7 +105,7 @@ type AppContextValue = {
     options?: { signal?: AbortSignal; onMedia?: (media: ListingMedia) => void },
   ) => Promise<ListingMedia>;
   deleteListingMedia: (listingId: number, mediaId: number) => Promise<void>;
-  updateSettings: (settings: AppSettings) => void;
+  updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   updateSector: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
   addWorkCategory: (category: Omit<WorkCategory, "id">) => void;
   updateWorkCategory: (id: number, category: Omit<WorkCategory, "id">) => void;
@@ -126,7 +127,6 @@ const AppContext = createContext<AppContextValue | null>(null);
 const fallbackImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
 const storageKeys = {
-  settings: "elhabashy:settings",
   aboutContent: "elhabashy:about-content",
   services: "elhabashy:services",
 };
@@ -438,14 +438,13 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [dashboardView, setDashboardView] = useState<DashboardView>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [listingsError, setListingsError] = useState("");
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
   const [adminListingsLoading, setAdminListingsLoading] = useState(false);
   const [adminListingsError, setAdminListingsError] = useState("");
-  const [settings, setSettings] = useState<AppSettings>(() =>
-    normalizeSettings(readStored<Partial<AppSettings>>(storageKeys.settings, initialSettings)),
-  );
+  const [settings, setSettings] = useState<AppSettings>(() => normalizeSettings(initialSettings));
   const [aboutContent, setAboutContent] = useState<AboutContent>(() =>
     normalizeAboutContent(readStored(storageKeys.aboutContent, initialAboutContent)),
   );
@@ -476,10 +475,10 @@ export function AppProvider({ children }: PropsWithChildren) {
     setListingsLoading(true);
     setListingsError("");
     try {
-      const first = await publicContentApi.listings({ page: 0, size: 100, sort: "createdAt,desc" });
+      const first = await elHabashyApi.public.listings({ page: 0, size: 100, sort: "createdAt,desc" });
       const remaining = first.totalPages > 1
         ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
-            publicContentApi.listings({ page: index + 1, size: 100, sort: "createdAt,desc" })))
+            elHabashyApi.public.listings({ page: index + 1, size: 100, sort: "createdAt,desc" })))
         : [];
       setListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
     } catch (error) {
@@ -493,7 +492,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     setSectorsLoading(true);
     setSectorsError("");
     try {
-      const response = await publicContentApi.sectors();
+      const response = await elHabashyApi.public.sectors();
       setSectors(normalizeSectors(response.map(sectorFromResponse).filter((sector): sector is Sector => sector !== null)));
     } catch (error) {
       setSectorsError(error instanceof Error ? error.message : "تعذر تحميل القطاعات.");
@@ -502,9 +501,32 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const loadFeaturedListings = useCallback(async () => {
+    try {
+      const response = await elHabashyApi.public.listings({
+        featured: true,
+        page: 0,
+        size: 20,
+        sort: "createdAt,desc",
+      });
+      setFeaturedListings(response.content.map(listingFromResponse));
+    } catch {
+      setFeaturedListings([]);
+    }
+  }, []);
+
+  const loadPublicSettings = useCallback(async () => {
+    try {
+      const response = await elHabashyApi.public.settings();
+      setSettings(normalizeSettings(response));
+    } catch {
+      setSettings((current) => normalizeSettings(current));
+    }
+  }, []);
+
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadSectors()]);
-  }, [loadPublicListings, loadSectors]);
+    await Promise.all([loadPublicListings(), loadFeaturedListings(), loadSectors(), loadPublicSettings()]);
+  }, [loadFeaturedListings, loadPublicListings, loadPublicSettings, loadSectors]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -514,14 +536,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     setAdminListingsLoading(true);
     setAdminListingsError("");
     try {
-      const first = await adminContentApi.listings(authorizedRequest, {
+      const first = await elHabashyApi.admin.content.listings(authorizedRequest, {
         page: 0,
         size: 100,
         sort: "createdAt,desc",
       });
       const remaining = first.totalPages > 1
         ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
-            adminContentApi.listings(authorizedRequest, { page: index + 1, size: 100, sort: "createdAt,desc" })))
+            elHabashyApi.admin.content.listings(authorizedRequest, { page: index + 1, size: 100, sort: "createdAt,desc" })))
         : [];
       setAdminListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
     } catch (error) {
@@ -556,10 +578,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [reloadAdminListings]);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKeys.settings, JSON.stringify(settings));
-  }, [settings]);
-
-  useEffect(() => {
     window.localStorage.setItem(storageKeys.aboutContent, JSON.stringify(aboutContent));
   }, [aboutContent]);
 
@@ -575,6 +593,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       dashboardView,
       mobileOpen,
       listings,
+      featuredListings,
       listingsLoading,
       listingsError,
       adminListings,
@@ -630,12 +649,13 @@ export function AppProvider({ children }: PropsWithChildren) {
 
         if (publicListing) {
           setListingDetailLoading(true);
-          void publicContentApi.listing(publicListing.slug)
+          void elHabashyApi.public.listing(publicListing.slug)
             .then((response) => {
               if (listingDetailRequest.current !== requestId) return;
               const detail = listingFromResponse(response);
               setSelectedListingDetail(detail);
               setListings((current) => current.map((listing) => listing.id === detail.id ? detail : listing));
+              setFeaturedListings((current) => current.map((listing) => listing.id === detail.id ? detail : listing));
             })
             .catch((error) => {
               if (listingDetailRequest.current === requestId) {
@@ -661,11 +681,36 @@ export function AppProvider({ children }: PropsWithChildren) {
         return `https://wa.me/${targetPhone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(routedMessage)}`;
       },
       trackWhatsApp(id) {
-        setListings((current) =>
-          current.map((listing) =>
-            listing.id === id ? { ...listing, whatsappClicks: listing.whatsappClicks + 1 } : listing,
-          ),
-        );
+        const listing = listings.find((item) => item.id === id)
+          ?? adminListings.find((item) => item.id === id)
+          ?? (selectedListingDetail?.id === id ? selectedListingDetail : undefined);
+        if (!listing) return;
+
+        const increment = (item: Listing) => item.id === id
+          ? { ...item, whatsappClicks: item.whatsappClicks + 1 }
+          : item;
+        setListings((current) => current.map(increment));
+        setFeaturedListings((current) => current.map(increment));
+        setSelectedListingDetail((current) => current?.id === id ? increment(current) : current);
+
+        void elHabashyApi.public.trackWhatsappClick(listing.slug).then((engagement) => {
+          const reconcile = (item: Listing) => item.id === id
+            ? { ...item, views: engagement.views, whatsappClicks: engagement.whatsappClicks }
+            : item;
+          setListings((current) => current.map(reconcile));
+          setFeaturedListings((current) => current.map(reconcile));
+          setSelectedListingDetail((current) => current?.id === id ? reconcile(current) : current);
+        }).catch(() => {
+          // Opening WhatsApp must never be blocked by an analytics failure.
+        });
+      },
+      async searchListings(query) {
+        const response = await elHabashyApi.public.listings({
+          ...query,
+          page: query.page ?? 0,
+          size: query.size ?? 100,
+        });
+        return response.content.map(listingFromResponse);
       },
       toggleFavorite(id) {
         if (!currentUser) {
@@ -679,7 +724,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       reloadAdminListings,
       async addListing(draft, media) {
         if (!media) throw new Error("A main listing image is required.");
-        const response = await adminContentApi.createListing(
+        const response = await elHabashyApi.admin.content.createListing(
           authorizedRequest,
           draftToRequest(draft),
           media,
@@ -687,40 +732,40 @@ export function AppProvider({ children }: PropsWithChildren) {
         const nextListing = listingFromResponse(response);
         setAdminListings((current) => [nextListing, ...current.filter((listing) => listing.id !== nextListing.id)]);
         setSelectedListingId(nextListing.id);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return nextListing;
       },
       async updateListing(id, draft) {
         const current = adminListings.find((listing) => listing.id === id) ?? listings.find((listing) => listing.id === id);
-        const response = await adminContentApi.updateListing(authorizedRequest, id, draftToRequest(draft, current));
+        const response = await elHabashyApi.admin.content.updateListing(authorizedRequest, id, draftToRequest(draft, current));
         const updated = listingFromResponse(response);
         setAdminListings((items) => items.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return updated;
       },
       async deleteListing(id) {
-        await adminContentApi.deleteListing(authorizedRequest, id);
+        await elHabashyApi.admin.content.deleteListing(authorizedRequest, id);
         setAdminListings((current) => current.filter((listing) => listing.id !== id));
         setSelectedListingDetail((detail) => detail?.id === id ? undefined : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
       },
       async updateListingStatus(id, status) {
-        const response = await adminContentApi.updateListingStatus(authorizedRequest, id, status);
+        const response = await elHabashyApi.admin.content.updateListingStatus(authorizedRequest, id, status);
         const updated = listingFromResponse(response);
         setAdminListings((current) => current.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await loadPublicListings();
+        await reloadContent();
         setToast(t.success);
         return updated;
       },
       async uploadListingMedia(listingId, file, role, options) {
         try {
-          const media = await listingMediaApi.upload(authorizedRequest, listingId, file, role, options);
-          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          const media = await elHabashyApi.admin.media.upload(authorizedRequest, listingId, file, role, options);
+          await Promise.all([reloadAdminListings(), reloadContent()]);
           return media;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") throw error;
@@ -730,13 +775,13 @@ export function AppProvider({ children }: PropsWithChildren) {
       },
       async watchListingMedia(listingId, media, options) {
         try {
-          const completed = await listingMediaApi.watch(
+          const completed = await elHabashyApi.admin.media.watch(
             authorizedRequest,
             listingId,
             media,
             options,
           );
-          await Promise.all([reloadAdminListings(), loadPublicListings()]);
+          await Promise.all([reloadAdminListings(), reloadContent()]);
           return completed;
         } catch (error) {
           if (error instanceof Error && error.name === "AbortError") throw error;
@@ -745,15 +790,18 @@ export function AppProvider({ children }: PropsWithChildren) {
         }
       },
       async deleteListingMedia(listingId, mediaId) {
-        await listingMediaApi.delete(authorizedRequest, listingId, mediaId);
-        await Promise.all([reloadAdminListings(), loadPublicListings()]);
+        await elHabashyApi.admin.media.delete(authorizedRequest, listingId, mediaId);
+        await Promise.all([reloadAdminListings(), reloadContent()]);
       },
-      updateSettings(nextSettings) {
-        setSettings(normalizeSettings(nextSettings));
+      async updateSettings(nextSettings) {
+        const response = await elHabashyApi.admin.content.updateSettings(authorizedRequest, nextSettings);
+        const normalized = normalizeSettings(response);
+        setSettings(normalized);
         setToast(t.settingsSaved);
+        return normalized;
       },
       async updateSector(id, sector) {
-        const response = await adminContentApi.updateSector(authorizedRequest, id, sector);
+        const response = await elHabashyApi.admin.content.updateSector(authorizedRequest, id, sector);
         const updated = sectorFromResponse(response);
         if (!updated) throw new Error("القطاع الذي أعاده الخادم غير معروف.");
         setSectors((current) => normalizeSectors(current.map((item) => (item.id === id ? updated : item))));
@@ -850,14 +898,15 @@ export function AppProvider({ children }: PropsWithChildren) {
       listingDetailError,
       listingDetailLoading,
       listings,
+      featuredListings,
       listingsError,
       listingsLoading,
-      loadPublicListings,
       mobileOpen,
       page,
       reloadAdminListings,
       reloadContent,
       selectedListing,
+      selectedListingDetail,
       settings,
       sectors,
       sectorsError,
