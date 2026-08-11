@@ -236,9 +236,13 @@ function normalizeAboutContent(content: AboutContent): AboutContent {
   const storedCertificates = Array.isArray(content.certificates) ? content.certificates : [];
   const workCategories = [...storedWork, ...initialAboutContent.workCategories.filter((seed) => !storedWork.some((item) => item.id === seed.id))];
   const certificates = [...storedCertificates, ...initialAboutContent.certificates.filter((seed) => !storedCertificates.some((item) => item.id === seed.id))];
+  const profile = normalizeText(content.profile ?? initialAboutContent.profile);
   return {
     ...content,
-    profile: normalizeText(content.profile ?? initialAboutContent.profile),
+    profile: {
+      ar: profile.ar.replace("شركة اتحاد الخبراء المثمنين", "الحبشي للخبراء المثمنين للخبرة والتثمين"),
+      en: profile.en.replace("Union of Valuation Experts", "El Habashy Valuation Experts for Expertise & Appraisal"),
+    },
     profileImage: content.profileImage || initialAboutContent.profileImage,
     workCategories: workCategories.map((category) => ({
       ...category,

@@ -69,7 +69,7 @@ export const initialSectors: Sector[] = [
 export const initialAboutContent: AboutContent = {
   profileImage: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=85",
   profile: {
-    ar: "بدأت نواة الشركة عام 1944 من مكتب شيخ الخبراء المثمنين سيد الحبشي، لتصبح شركة اتحاد الخبراء المثمنين واحدة من أقدم الجهات المتخصصة في الخبرة والتثمين والمزايدات في مصر. توسعت الخبرة لتشمل العقارات والمنقولات والسيارات والمخلفات والتحف والتحكيم وفض المنازعات.",
+    ar: "بدأت نواة الشركة عام 1944 من مكتب شيخ الخبراء المثمنين سيد الحبشي، لتصبح الحبشي للخبراء المثمنين للخبرة والتثمين واحدة من أقدم الجهات المتخصصة في الخبرة والتثمين والمزايدات في مصر. توسعت الخبرة لتشمل العقارات والمنقولات والسيارات والمخلفات والتحف والتحكيم وفض المنازعات.",
     en: "The company started in 1944 from the office of valuation expert Sayed El Habashy, growing into one of Egypt's long-standing valuation and auction practices. Its expertise covers real estate, movable assets, cars, scrap, antiques, arbitration, and dispute resolution.",
   },
   workCategories: [
