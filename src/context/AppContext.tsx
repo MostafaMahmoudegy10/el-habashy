@@ -17,6 +17,7 @@ import { useAuth } from "./AuthContext";
 import { copy } from "../lib/i18n";
 import { initialServices } from "../data/services";
 import { sanitizeRichText } from "../lib/richText";
+import { readPublicContentCache, updatePublicContentCache } from "../lib/publicContentCache";
 import {
   elHabashyApi,
   type ListingQuery,
@@ -467,24 +468,30 @@ export function listingToDraft(listing?: Listing): ListingDraft {
 
 export function AppProvider({ children }: PropsWithChildren) {
   const { user: currentUser, authorizedRequest } = useAuth();
+  const cachedPublicContent = useRef(readPublicContentCache()).current;
   const [lang, setLang] = useState<Language>("ar");
   const [page, setPage] = useState<Page>("home");
   const [aboutSection, setAboutSection] = useState<AboutSection>("profile");
   const [dashboardView, setDashboardView] = useState<DashboardView>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
-  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listings, setListings] = useState<Listing[]>(() =>
+    (cachedPublicContent.listings ?? []).map(normalizeListing));
+  const [featuredListings, setFeaturedListings] = useState<Listing[]>(() =>
+    (cachedPublicContent.listings ?? []).map(normalizeListing).filter((listing) => listing.featured).slice(0, 20));
+  const [listingsLoading, setListingsLoading] = useState(!cachedPublicContent.listings?.length);
   const [listingsError, setListingsError] = useState("");
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
   const [adminListingsLoading, setAdminListingsLoading] = useState(false);
   const [adminListingsError, setAdminListingsError] = useState("");
-  const [settings, setSettings] = useState<AppSettings>(() => normalizeSettings(initialSettings));
-  const [aboutContent, setAboutContent] = useState<AboutContent>(() => normalizeAboutContent(initialAboutContent));
-  const [aboutLoading, setAboutLoading] = useState(true);
+  const [settings, setSettings] = useState<AppSettings>(() =>
+    normalizeSettings(cachedPublicContent.settings ?? initialSettings));
+  const [aboutContent, setAboutContent] = useState<AboutContent>(() =>
+    normalizeAboutContent(cachedPublicContent.about ?? initialAboutContent));
+  const [aboutLoading, setAboutLoading] = useState(!cachedPublicContent.about);
   const [aboutError, setAboutError] = useState("");
-  const [sectors, setSectors] = useState<Sector[]>([]);
-  const [sectorsLoading, setSectorsLoading] = useState(true);
+  const [sectors, setSectors] = useState<Sector[]>(() =>
+    normalizeSectors(cachedPublicContent.sectors ?? []));
+  const [sectorsLoading, setSectorsLoading] = useState(!cachedPublicContent.sectors?.length);
   const [sectorsError, setSectorsError] = useState("");
   const [services, setServices] = useState<ServiceArticle[]>(() => {
     const stored = readStored<ServiceArticle[]>(storageKeys.services, []);
@@ -498,6 +505,10 @@ export function AppProvider({ children }: PropsWithChildren) {
   const listingDetailRequest = useRef(0);
   const [listingCategoryFilter, setListingCategoryFilter] = useState<ListingCategory | "all">("all");
   const [toast, setToast] = useState("");
+  const listingsRef = useRef(listings);
+  const sectorsRef = useRef(sectors);
+  const aboutContentRef = useRef(aboutContent);
+  const aboutRefreshStarted = useRef(false);
 
   const t = copy[lang];
   const selectedListing =
@@ -506,78 +517,96 @@ export function AppProvider({ children }: PropsWithChildren) {
     ?? listings[0];
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? services[0];
 
+  const commitPublicListings = useCallback((nextListings: Listing[]) => {
+    listingsRef.current = nextListings;
+    setListings(nextListings);
+    setFeaturedListings(nextListings.filter((listing) => listing.featured).slice(0, 20));
+    updatePublicContentCache({ listings: nextListings });
+  }, []);
+
   const loadPublicListings = useCallback(async () => {
-    setListingsLoading(true);
+    setListingsLoading(listingsRef.current.length === 0);
     setListingsError("");
     try {
-      const first = await elHabashyApi.public.listings({ page: 0, size: 100, sort: "createdAt,desc" });
+      const first = await elHabashyApi.public.listings({ page: 0, size: 24, sort: "createdAt,desc" });
+      const firstListings = first.content.map(listingFromResponse);
+      commitPublicListings(firstListings);
+      setListingsLoading(false);
+
       const remaining = first.totalPages > 1
         ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
-            elHabashyApi.public.listings({ page: index + 1, size: 100, sort: "createdAt,desc" })))
+            elHabashyApi.public.listings({ page: index + 1, size: 24, sort: "createdAt,desc" })))
         : [];
-      setListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
+      if (remaining.length) {
+        commitPublicListings([
+          ...firstListings,
+          ...remaining.flatMap((pageResponse) => pageResponse.content).map(listingFromResponse),
+        ]);
+      }
     } catch (error) {
-      setListingsError(error instanceof Error ? error.message : "تعذر تحميل الإعلانات.");
+      if (!listingsRef.current.length) {
+        setListingsError(error instanceof Error ? error.message : "تعذر تحميل الإعلانات.");
+      }
     } finally {
       setListingsLoading(false);
     }
-  }, []);
+  }, [commitPublicListings]);
 
   const loadSectors = useCallback(async () => {
-    setSectorsLoading(true);
+    setSectorsLoading(sectorsRef.current.length === 0);
     setSectorsError("");
     try {
       const response = await elHabashyApi.public.sectors();
-      setSectors(normalizeSectors(response.map(sectorFromResponse).filter((sector): sector is Sector => sector !== null)));
+      const nextSectors = normalizeSectors(response.map(sectorFromResponse).filter((sector): sector is Sector => sector !== null));
+      sectorsRef.current = nextSectors;
+      setSectors(nextSectors);
+      updatePublicContentCache({ sectors: nextSectors });
     } catch (error) {
-      setSectorsError(error instanceof Error ? error.message : "تعذر تحميل القطاعات.");
+      if (!sectorsRef.current.length) {
+        setSectorsError(error instanceof Error ? error.message : "تعذر تحميل القطاعات.");
+      }
     } finally {
       setSectorsLoading(false);
-    }
-  }, []);
-
-  const loadFeaturedListings = useCallback(async () => {
-    try {
-      const response = await elHabashyApi.public.listings({
-        featured: true,
-        page: 0,
-        size: 20,
-        sort: "createdAt,desc",
-      });
-      setFeaturedListings(response.content.map(listingFromResponse));
-    } catch {
-      setFeaturedListings([]);
     }
   }, []);
 
   const loadPublicSettings = useCallback(async () => {
     try {
       const response = await elHabashyApi.public.settings();
-      setSettings(normalizeSettings(response));
+      const nextSettings = normalizeSettings(response);
+      setSettings(nextSettings);
+      updatePublicContentCache({ settings: nextSettings });
     } catch {
       setSettings((current) => normalizeSettings(current));
     }
   }, []);
 
   const reloadAboutContent = useCallback(async () => {
-    setAboutLoading(true);
+    setAboutLoading(!cachedPublicContent.about && !aboutContentRef.current.profile.headline.ar);
     setAboutError("");
     try {
       const response = currentUser?.role === "ADMIN"
         ? await elHabashyApi.admin.content.about(authorizedRequest)
         : await elHabashyApi.public.about();
-      setAboutContent(normalizeAboutContent(response));
+      const nextAboutContent = normalizeAboutContent(response);
+      aboutContentRef.current = nextAboutContent;
+      setAboutContent(nextAboutContent);
+      if (currentUser?.role !== "ADMIN") {
+        updatePublicContentCache({ about: nextAboutContent });
+      }
     } catch (error) {
-      setAboutError(error instanceof Error ? error.message : "تعذر تحميل محتوى نبذة عن الشركة.");
+      if (!cachedPublicContent.about || currentUser?.role === "ADMIN") {
+        setAboutError(error instanceof Error ? error.message : "تعذر تحميل محتوى نبذة عن الشركة.");
+      }
       setAboutContent((current) => normalizeAboutContent(current));
     } finally {
       setAboutLoading(false);
     }
-  }, [authorizedRequest, currentUser?.role]);
+  }, [authorizedRequest, cachedPublicContent.about, currentUser?.role]);
 
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadFeaturedListings(), loadSectors(), loadPublicSettings(), reloadAboutContent()]);
-  }, [loadFeaturedListings, loadPublicListings, loadPublicSettings, loadSectors, reloadAboutContent]);
+    await Promise.all([loadPublicListings(), loadSectors(), loadPublicSettings()]);
+  }, [loadPublicListings, loadPublicSettings, loadSectors]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -616,14 +645,15 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [toast]);
 
   useEffect(() => {
-    window.localStorage.removeItem("elhabashy:listings");
-    window.localStorage.removeItem("elhabashy:sectors");
-    window.localStorage.removeItem("elhabashy:about-content");
-  }, []);
-
-  useEffect(() => {
     void reloadContent();
   }, [reloadContent]);
+
+  useEffect(() => {
+    if (page !== "about" && page !== "dashboard") return;
+    if (aboutRefreshStarted.current && currentUser?.role !== "ADMIN") return;
+    aboutRefreshStarted.current = true;
+    void reloadAboutContent();
+  }, [currentUser?.role, page, reloadAboutContent]);
 
   useEffect(() => {
     void reloadAdminListings();
@@ -847,6 +877,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const response = await elHabashyApi.admin.content.updateSettings(authorizedRequest, nextSettings);
         const normalized = normalizeSettings(response);
         setSettings(normalized);
+        updatePublicContentCache({ settings: normalized });
         setToast(t.settingsSaved);
         return normalized;
       },
@@ -854,7 +885,10 @@ export function AppProvider({ children }: PropsWithChildren) {
         const response = await elHabashyApi.admin.content.updateSector(authorizedRequest, id, sector);
         const updated = sectorFromResponse(response);
         if (!updated) throw new Error("القطاع الذي أعاده الخادم غير معروف.");
-        setSectors((current) => normalizeSectors(current.map((item) => (item.id === id ? updated : item))));
+        const nextSectors = normalizeSectors(sectorsRef.current.map((item) => (item.id === id ? updated : item)));
+        sectorsRef.current = nextSectors;
+        setSectors(nextSectors);
+        updatePublicContentCache({ sectors: nextSectors });
         setToast(t.success);
         return updated;
       },
