@@ -14,9 +14,10 @@ export function LazyImage({
   ...props
 }: LazyImageProps) {
   const [loaded, setLoaded] = useState(false);
+  const hasExplicitPosition = /(?:^|\s)(?:absolute|fixed|relative|sticky)(?:\s|$)/.test(wrapperClassName);
 
   return (
-    <span className={`relative block overflow-hidden bg-slate-100 ${wrapperClassName}`}>
+    <span className={`${hasExplicitPosition ? "" : "relative"} block overflow-hidden bg-slate-100 ${wrapperClassName}`}>
       {!loaded ? (
         <span className="absolute inset-0 animate-pulse bg-gradient-to-r from-slate-100 via-white to-slate-200" />
       ) : null}
