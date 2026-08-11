@@ -30,7 +30,9 @@ export class ApiError extends Error {
 
 type RequestOptions = Omit<RequestInit, "body"> & { body?: unknown; token?: string | null };
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
+async function executeRequest<T>(path: string, options: RequestOptions): Promise<T> {
   const headers = new Headers(options.headers);
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   if (options.body !== undefined && !isFormData) headers.set("Content-Type", "application/json");
@@ -63,4 +65,21 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     });
   }
   return payload as T;
+}
+
+export function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET" || options.body !== undefined || options.token) {
+    return executeRequest<T>(path, options);
+  }
+
+  const requestKey = `${API_BASE_URL}${path}`;
+  const pending = inFlightGetRequests.get(requestKey) as Promise<T> | undefined;
+  if (pending) return pending;
+
+  const request = executeRequest<T>(path, options).finally(() => {
+    inFlightGetRequests.delete(requestKey);
+  });
+  inFlightGetRequests.set(requestKey, request);
+  return request;
 }
