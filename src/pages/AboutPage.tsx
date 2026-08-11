@@ -1,274 +1,326 @@
-import type { IconType } from "react-icons";
 import {
   FiAward,
   FiBriefcase,
+  FiCalendar,
   FiCheckCircle,
-  FiGrid,
+  FiCompass,
   FiLayers,
   FiMapPin,
-  FiPhone,
-  FiShield,
+  FiTarget,
   FiUsers,
 } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa6";
+import type { ReactNode } from "react";
 import { LazyImage } from "../components/LazyImage";
 import { useApp } from "../context/AppContext";
-import type { AboutSection } from "../types";
-import heroBackground from "../assets/elhabashy-hero-bg.png";
+import type { AboutSection, LocalizedText } from "../types";
+
+const sectionMeta: Record<AboutSection, { icon: typeof FiUsers; ar: string; en: string }> = {
+  profile: { icon: FiCompass, ar: "نبذة عن الشركة", en: "Company profile" },
+  "previous-work": { icon: FiBriefcase, ar: "سابقة الأعمال", en: "Previous work" },
+  certificates: { icon: FiAward, ar: "شهادات التقدير", en: "Certificates" },
+  structure: { icon: FiUsers, ar: "الهيكل التنظيمي", en: "Organization" },
+};
+
+function text(value: LocalizedText, lang: "ar" | "en") {
+  return value[lang] || value.ar || value.en;
+}
 
 export function AboutPage() {
-  const { aboutContent, aboutSection, lang, listings, settings, t, navigate, navigateAbout } = useApp();
-  const sections: Array<{ id: AboutSection; label: string; icon: IconType }> = [
-    { id: "profile", label: t.aboutProfile, icon: FiBriefcase },
-    { id: "previous-work", label: t.previousWork, icon: FiGrid },
-    { id: "certificates", label: t.honorCertificates, icon: FiAward },
-    { id: "structure", label: t.organizationStructure, icon: FiUsers },
-  ];
+  const {
+    aboutContent,
+    aboutError,
+    aboutLoading,
+    aboutSection,
+    lang,
+    navigateAbout,
+  } = useApp();
+  const isArabic = lang === "ar";
+  const profile = aboutContent.profile;
 
   return (
-    <>
-      <section className="relative overflow-hidden bg-slate-950 text-white">
-        <div className="absolute inset-0">
-          <LazyImage eager src={heroBackground} alt="" wrapperClassName="h-full opacity-45" className="h-full min-h-[560px] w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-slate-950/30" />
-        </div>
-        <div className="relative mx-auto grid max-w-7xl gap-8 px-4 py-16 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-6 lg:py-24">
-          <div>
-            <span className="inline-flex rounded-full border border-amber-300/40 bg-white/10 px-4 py-2 text-xs font-black uppercase text-amber-200 backdrop-blur">
-              {t.about}
+    <main className="overflow-hidden bg-[#f7f7f3] text-slate-950">
+      <section className="relative isolate overflow-hidden bg-[#072f24] text-white">
+        <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_15%_20%,#d3af67_0,transparent_28%),radial-gradient(circle_at_85%_80%,#15805f_0,transparent_32%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#d3af67]/70 to-transparent" />
+        <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-16 sm:px-8 lg:px-12 lg:pb-16 lg:pt-24">
+          <div className="max-w-4xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#d3af67]/40 bg-white/5 px-4 py-2 text-xs font-black tracking-[0.18em] text-[#efd99e]">
+              <FiCheckCircle /> {isArabic ? `خبرة منذ ${profile.startedYear}` : `Trusted since ${profile.startedYear}`}
             </span>
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-tight md:text-6xl">
-              {lang === "ar"
-                ? "نبذة عنا منظمة بنفس روح الموقع الأصلي، لكن قابلة للإدارة."
-                : "A structured company profile, inspired by the original site and ready to manage."}
+            <h1 className="mt-6 text-4xl font-black leading-[1.25] sm:text-5xl lg:text-6xl">
+              {text(profile.headline, lang)}
             </h1>
-            <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-slate-200 md:text-lg">
-              {aboutContent.profile[lang]}
+            <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-emerald-50/75 sm:text-lg">
+              {text(profile.profile, lang)}
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button type="button" onClick={() => navigateAbout("previous-work")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-amber-400 px-6 text-sm font-black text-slate-950 transition hover:-translate-y-1 hover:bg-amber-300">
-                <FiGrid />
-                {t.previousWork}
-              </button>
-              <button type="button" onClick={() => navigate("listings")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-6 text-sm font-black text-white backdrop-blur transition hover:-translate-y-1 hover:bg-white/15">
-                <FiLayers />
-                {t.browseListings}
-              </button>
-            </div>
           </div>
 
-          <div className="grid content-end gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <HeroMetric value="1944" label={lang === "ar" ? "بداية الخبرة" : "Started"} />
-            <HeroMetric value={aboutContent.workCategories.length} label={t.workCategories} />
-            <HeroMetric value={listings.length} label={t.totalListings} />
-            <HeroMetric value={aboutContent.certificates.length} label={t.honorCertificates} />
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-slate-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-4 lg:px-6">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            const active = aboutSection === section.id;
-            return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => navigateAbout(section.id)}
-                className={`inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border px-5 text-sm font-black transition ${
-                  active ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-slate-950"
-                }`}
-              >
-                <Icon />
-                {section.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {aboutSection === "profile" ? <ProfileSection /> : null}
-      {aboutSection === "previous-work" ? <PreviousWorkSection /> : null}
-      {aboutSection === "certificates" ? <CertificatesSection /> : null}
-      {aboutSection === "structure" ? <StructureSection /> : null}
-
-      <section className="mx-auto max-w-7xl px-4 pb-16 lg:px-6">
-        <div className="grid gap-4 rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-950/20 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-8">
-          <div>
-            <span className="text-xs font-black uppercase text-amber-300">{t.contact}</span>
-            <h2 className="mt-2 text-3xl font-black leading-tight">
-              {lang === "ar" ? "تواصل مباشر مع فريق الحبشي." : "Direct contact with El Habashy team."}
-            </h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-slate-300">{settings.officeAddress[lang]}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a href={`https://wa.me/${settings.whatsappNumber.replace(/[^\d]/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 text-sm font-black text-white">
-              <FaWhatsapp />
-              {t.whatsapp}
-            </a>
-            {settings.mapUrl ? (
-              <a href={settings.mapUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/10 px-5 text-sm font-black text-slate-200 transition hover:bg-white hover:text-slate-950">
-                <FiMapPin />
-                {t.openLocation}
-              </a>
-            ) : null}
-            <span className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/10 px-5 text-sm font-black text-slate-200">
-              <FiPhone />
-              {settings.contactPhone}
-            </span>
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(Object.keys(sectionMeta) as AboutSection[]).map((section) => {
+              const item = sectionMeta[section];
+              const Icon = item.icon;
+              const active = aboutSection === section;
+              return (
+                <button
+                  type="button"
+                  key={section}
+                  onClick={() => navigateAbout(section)}
+                  className={`flex items-center gap-3 rounded-2xl border px-4 py-4 text-start text-sm font-black transition ${
+                    active
+                      ? "border-[#d3af67] bg-[#d3af67] text-[#092e24] shadow-xl shadow-black/20"
+                      : "border-white/15 bg-white/5 text-white hover:border-[#d3af67]/60 hover:bg-white/10"
+                  }`}
+                >
+                  <Icon className="text-lg" />
+                  {isArabic ? item.ar : item.en}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
-    </>
+
+      {aboutLoading ? <AboutSkeleton /> : null}
+      {!aboutLoading && aboutError ? (
+        <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-8 lg:px-12">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-900">
+            {aboutError}
+          </div>
+        </div>
+      ) : null}
+      {!aboutLoading && aboutSection === "profile" ? <ProfileSection /> : null}
+      {!aboutLoading && aboutSection === "previous-work" ? <PreviousWorkSection /> : null}
+      {!aboutLoading && aboutSection === "certificates" ? <CertificatesSection /> : null}
+      {!aboutLoading && aboutSection === "structure" ? <OrganizationSection /> : null}
+    </main>
+  );
+}
+
+function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+  return (
+    <div className="max-w-3xl">
+      <p className="text-xs font-black uppercase tracking-[0.25em] text-[#a67c31]">{eyebrow}</p>
+      <h2 className="mt-3 text-3xl font-black leading-tight text-[#082f25] sm:text-4xl">{title}</h2>
+      <p className="mt-4 text-sm font-semibold leading-8 text-slate-600 sm:text-base">{description}</p>
+    </div>
   );
 }
 
 function ProfileSection() {
-  const { aboutContent, lang, t } = useApp();
-  const pillars = [
-    { icon: FiBriefcase, title: lang === "ar" ? "خبرة وتثمين" : "Valuation expertise" },
-    { icon: FiLayers, title: lang === "ar" ? "مزادات وبيع منظم" : "Organized auctions" },
-    { icon: FiShield, title: lang === "ar" ? "تحكيم وفض منازعات" : "Arbitration support" },
-    { icon: FiCheckCircle, title: lang === "ar" ? "إدارة مستندات" : "Document handling" },
-  ];
+  const { aboutContent, lang } = useApp();
+  const profile = aboutContent.profile;
+  const isArabic = lang === "ar";
+  const years = Math.max(1, new Date().getFullYear() - profile.startedYear);
 
   return (
-    <section className="mx-auto grid max-w-7xl gap-8 px-4 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:px-6">
-      <div>
-        {aboutContent.profileImage ? <LazyImage src={aboutContent.profileImage} alt={t.aboutProfile} className="mb-6 aspect-[1.8] w-full rounded-[2rem] object-cover shadow-xl shadow-slate-950/10" /> : null}
-        <span className="text-xs font-black uppercase text-amber-700">{t.aboutProfile}</span>
-        <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
-          {lang === "ar" ? "خبرة وراثة ودراسة منذ 1944." : "Inherited and studied expertise since 1944."}
-        </h2>
-        <p className="mt-5 text-sm font-semibold leading-8 text-slate-600">{aboutContent.profile[lang]}</p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {pillars.map((item) => {
-          const Icon = item.icon;
-          return (
-            <article key={item.title} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/5">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-950 text-amber-300">
-                <Icon />
-              </span>
-              <h3 className="mt-5 text-xl font-black text-slate-950">{item.title}</h3>
-              <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">
-                {lang === "ar"
-                  ? "خبرة عملية في إدارة بيانات الأصول وتجهيز مسارات تواصل واضحة للعملاء."
-                  : "Practical experience in organizing asset data and clear customer contact paths."}
-              </p>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function PreviousWorkSection() {
-  const { aboutContent, lang, t } = useApp();
-
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
-      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <span className="text-xs font-black uppercase text-amber-700">{t.previousWork}</span>
-          <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
-            {lang === "ar" ? "سابقة الأعمال كتصنيفات قابلة للإضافة." : "Previous work as editable categories."}
-          </h2>
+    <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
+      <div className="grid items-stretch gap-8 lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="relative min-h-[420px] overflow-hidden rounded-[2rem] bg-[#0a3b2d] shadow-2xl shadow-emerald-950/15">
+          {profile.imageUrl ? (
+            <LazyImage src={profile.imageUrl} alt={text(profile.headline, lang)} className="absolute inset-0 h-full w-full object-cover" />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#062b21] via-[#062b21]/15 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-7 text-white sm:p-9">
+            <p className="text-5xl font-black text-[#ebd28f]">+{years}</p>
+            <p className="mt-2 text-sm font-black tracking-wide text-white/85">
+              {isArabic ? "عامًا من الخبرة المتراكمة" : "years of accumulated expertise"}
+            </p>
+          </div>
         </div>
-        <span className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-amber-300">
-          {aboutContent.workCategories.length} {t.workCategories}
-        </span>
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {aboutContent.workCategories.map((category) => (
-          <article key={category.id} className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-2xl font-black text-slate-950">{category.title[lang]}</h3>
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
-                {category.items.length}
-              </span>
-            </div>
-            <div className="mt-5 grid gap-2">
-              {category.items.map((item, index) => (
-                <span key={`${category.id}-${index}`} className="flex items-start gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold leading-6 text-slate-700">
-                  <FiCheckCircle className="mt-1 shrink-0 text-emerald-600" />
-                  {item[lang]}
-                </span>
-              ))}
-            </div>
-          </article>
-        ))}
+        <div className="rounded-[2rem] border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-950/5 sm:p-10">
+          <SectionHeading
+            eyebrow={isArabic ? "قصتنا" : "Our story"}
+            title={text(profile.headline, lang)}
+            description={text(profile.profile, lang)}
+          />
+          <div className="mt-9 grid gap-4">
+            <ValueCard icon={FiTarget} title={isArabic ? "رسالتنا" : "Our mission"} body={text(profile.mission, lang)} />
+            <ValueCard icon={FiCompass} title={isArabic ? "رؤيتنا" : "Our vision"} body={text(profile.vision, lang)} />
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-function CertificatesSection() {
-  const { aboutContent, lang, t } = useApp();
-
+function ValueCard({ icon: Icon, title, body }: { icon: typeof FiTarget; title: string; body: string }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
-      <span className="text-xs font-black uppercase text-amber-700">{t.honorCertificates}</span>
-      <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
-        {lang === "ar" ? "مساحة شهادات التقدير والاعتمادات." : "Recognition and accreditation space."}
-      </h2>
-      <div className="mt-8 grid gap-5 md:grid-cols-2">
-        {aboutContent.certificates.map((certificate) => (
-          <article key={certificate.id} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/5">
-            {certificate.image ? <LazyImage src={certificate.image} alt={certificate.title[lang]} className="mb-5 aspect-[1.6] w-full rounded-2xl object-cover" /> : null}
-            <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">{certificate.date}</span>
-            <h3 className="mt-5 text-2xl font-black text-slate-950">{certificate.title[lang]}</h3>
-            <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">{certificate.description[lang]}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function StructureSection() {
-  const { aboutContent, lang, t } = useApp();
-
-  return (
-    <section className="mx-auto grid max-w-7xl gap-8 px-4 py-16 lg:grid-cols-[0.85fr_1.15fr] lg:px-6">
+    <article className="flex gap-4 rounded-2xl border border-emerald-900/10 bg-[#f4f7f3] p-5">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#0a4b38] text-lg text-[#efd99e]"><Icon /></span>
       <div>
-        <span className="text-xs font-black uppercase text-amber-700">{t.organizationStructure}</span>
-        <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
-          {lang === "ar" ? "الأسماء والأقسام الداخلية بشكل واضح." : "Leadership and internal departments, clearly arranged."}
-        </h2>
-      </div>
-      <div className="grid gap-5">
-        {aboutContent.structure.image ? <LazyImage src={aboutContent.structure.image} alt={t.organizationStructure} className="max-h-[420px] w-full rounded-[2rem] object-cover shadow-xl" /> : null}
-        <StructureBlock title={lang === "ar" ? "الخبراء والمسؤولون" : "Experts and leadership"} items={aboutContent.structure.leaders.map((item) => item[lang])} />
-        <StructureBlock title={lang === "ar" ? "الأقسام الداخلية" : "Internal departments"} items={aboutContent.structure.departments.map((item) => item[lang])} />
-      </div>
-    </section>
-  );
-}
-
-function StructureBlock({ title, items }: { title: string; items: string[] }) {
-  return (
-    <article className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-950/5">
-      <h3 className="text-2xl font-black text-slate-950">{title}</h3>
-      <div className="mt-5 flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span key={item} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700">
-            {item}
-          </span>
-        ))}
+        <h3 className="font-black text-[#0a3b2d]">{title}</h3>
+        <p className="mt-2 text-sm font-semibold leading-7 text-slate-600">{body}</p>
       </div>
     </article>
   );
 }
 
-function HeroMetric({ value, label }: { value: string | number; label: string }) {
+function PreviousWorkSection() {
+  const { aboutContent, lang } = useApp();
+  const isArabic = lang === "ar";
+  const projects = aboutContent.workCategories.reduce((total, category) => total + category.entries.length, 0);
+
   return (
-    <span className="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur">
-      <strong className="block text-4xl font-black text-white">{value}</strong>
-      <small className="mt-2 block text-xs font-black text-slate-300">{label}</small>
-    </span>
+    <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <SectionHeading
+          eyebrow={isArabic ? "خبرات موثقة" : "Documented expertise"}
+          title={isArabic ? "سابقة أعمال بتفاصيلها" : "Previous work, with the details that matter"}
+          description={isArabic ? "كل مشروع يعرض الجهة والموقع والسنة ونطاق العمل، بدل الاكتفاء بقائمة أسماء غير واضحة." : "Every project includes its client, location, year and scope—not just an unexplained list of names."}
+        />
+        <div className="shrink-0 rounded-2xl bg-[#0a3b2d] px-6 py-4 text-white">
+          <strong className="text-3xl text-[#ebd28f]">{projects}</strong>
+          <span className="ms-2 text-sm font-bold text-white/75">{isArabic ? "مشروعًا" : "projects"}</span>
+        </div>
+      </div>
+
+      <div className="mt-12 space-y-14">
+        {aboutContent.workCategories.map((category) => (
+          <div key={category.id}>
+            <div className="mb-6 flex items-start gap-4 border-b border-slate-200 pb-5">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#d3af67]/20 text-xl text-[#8a6425]"><FiLayers /></span>
+              <div>
+                <h3 className="text-2xl font-black text-[#082f25]">{text(category.title, lang)}</h3>
+                <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-slate-600">{text(category.summary, lang)}</p>
+              </div>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {category.entries.map((entry) => (
+                <article key={entry.id} className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-lg shadow-slate-950/5">
+                  {entry.imageUrl ? (
+                    <LazyImage src={entry.imageUrl} alt={text(entry.title, lang)} className="aspect-[16/8] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
+                  ) : (
+                    <div className="grid aspect-[16/6] place-items-center bg-gradient-to-br from-[#0a4b38] to-[#072f24] text-4xl text-[#d3af67]"><FiBriefcase /></div>
+                  )}
+                  <div className="p-6 sm:p-7">
+                    <div className="flex flex-wrap gap-2 text-xs font-black text-[#0a4b38]">
+                      {entry.projectYear ? <Meta icon={FiCalendar}>{entry.projectYear}</Meta> : null}
+                      {text(entry.location, lang) ? <Meta icon={FiMapPin}>{text(entry.location, lang)}</Meta> : null}
+                    </div>
+                    <h4 className="mt-4 text-xl font-black leading-snug text-slate-950">{text(entry.title, lang)}</h4>
+                    <p className="mt-2 text-sm font-black text-[#9a712c]">{text(entry.client, lang)}</p>
+                    <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">{text(entry.summary, lang)}</p>
+                    <div className="mt-5 border-t border-slate-100 pt-5 text-sm font-medium leading-7 text-slate-500">{text(entry.details, lang)}</div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!aboutContent.workCategories.length ? <EmptyState label={isArabic ? "لم تُضف سابقة أعمال بعد." : "No previous work has been added yet."} /> : null}
+      </div>
+    </section>
+  );
+}
+
+function Meta({ icon: Icon, children }: { icon: typeof FiCalendar; children: ReactNode }) {
+  return <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5"><Icon />{children}</span>;
+}
+
+function CertificatesSection() {
+  const { aboutContent, lang } = useApp();
+  const isArabic = lang === "ar";
+  return (
+    <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
+      <SectionHeading
+        eyebrow={isArabic ? "تقدير وثقة" : "Recognition and trust"}
+        title={isArabic ? "شهادات التقدير" : "Certificates and recognition"}
+        description={isArabic ? "عرض بصري واضح لكل شهادة، مع الجهة المانحة والتاريخ ووصف سبب التكريم." : "A clear visual record of every certificate, including issuer, date and the reason for recognition."}
+      />
+      <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {aboutContent.certificates.map((certificate) => (
+          <article key={certificate.id} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-xl shadow-slate-950/5">
+            <div className="relative bg-[#0a3b2d]">
+              {certificate.imageUrl ? (
+                <LazyImage src={certificate.imageUrl} alt={text(certificate.title, lang)} className="aspect-[4/3] w-full object-cover" />
+              ) : (
+                <div className="grid aspect-[4/3] place-items-center text-6xl text-[#d3af67]"><FiAward /></div>
+              )}
+              <span className="absolute bottom-4 end-4 grid h-12 w-12 place-items-center rounded-2xl bg-[#d3af67] text-xl text-[#082f25] shadow-lg"><FiAward /></span>
+            </div>
+            <div className="p-6">
+              {certificate.issueDate ? <p className="text-xs font-black tracking-widest text-[#9a712c]">{certificate.issueDate.slice(0, 4)}</p> : null}
+              <h3 className="mt-2 text-xl font-black leading-snug text-[#082f25]">{text(certificate.title, lang)}</h3>
+              <p className="mt-3 text-sm font-black text-slate-500">{text(certificate.issuer, lang)}</p>
+              <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">{text(certificate.description, lang)}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+      {!aboutContent.certificates.length ? <div className="mt-10"><EmptyState label={isArabic ? "لم تُضف شهادات بعد." : "No certificates have been added yet."} /></div> : null}
+    </section>
+  );
+}
+
+function OrganizationSection() {
+  const { aboutContent, lang } = useApp();
+  const isArabic = lang === "ar";
+  const people = aboutContent.people.filter((person) => person.active);
+  return (
+    <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
+      <SectionHeading
+        eyebrow={isArabic ? "فريق العمل" : "Our team"}
+        title={isArabic ? "هيكل تنظيمي واضح وقابل للتوسع" : "A clear, scalable organization"}
+        description={isArabic ? "كل خبير له دوره ونبذته وصورته، ويمكن إضافة أعضاء وأقسام جديدة من لوحة التحكم في أي وقت." : "Every expert has a role, biography and photo, while new people and departments can be added at any time."}
+      />
+
+      <div className="relative mt-12">
+        <div className="absolute bottom-[-30px] left-1/2 top-0 hidden w-px -translate-x-1/2 bg-[#d3af67]/50 lg:block" />
+        <div className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {people.map((person, index) => (
+            <article key={person.id} className={`relative overflow-hidden rounded-[1.75rem] border bg-white shadow-xl shadow-slate-950/5 ${index === 0 ? "border-[#c59d4d] lg:col-span-2 xl:col-span-2" : "border-slate-200"}`}>
+              <div className={`grid ${index === 0 ? "sm:grid-cols-[180px_1fr]" : ""}`}>
+                {person.imageUrl ? (
+                  <LazyImage src={person.imageUrl} alt={text(person.name, lang)} className={`${index === 0 ? "h-64 sm:h-full" : "aspect-[4/3]"} w-full object-cover object-top`} />
+                ) : (
+                  <div className={`${index === 0 ? "h-64 sm:h-full" : "aspect-[4/3]"} grid place-items-center bg-gradient-to-br from-[#0b503c] to-[#072f24] text-5xl font-black text-[#e1c477]`}>
+                    {text(person.name, lang).trim().charAt(0)}
+                  </div>
+                )}
+                <div className="p-6">
+                  <span className="text-xs font-black uppercase tracking-wider text-[#9a712c]">{text(person.role, lang)}</span>
+                  <h3 className="mt-2 text-xl font-black text-[#082f25]">{text(person.name, lang)}</h3>
+                  <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">{text(person.biography, lang)}</p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative mt-16 rounded-[2rem] bg-[#082f25] p-6 text-white sm:p-9">
+        <div className="absolute left-1/2 top-[-34px] hidden h-[34px] w-px -translate-x-1/2 bg-[#d3af67]/70 lg:block" />
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#d3af67] text-[#082f25]"><FiLayers /></span>
+          <h3 className="text-xl font-black">{isArabic ? "الإدارات والقطاعات المتخصصة" : "Specialized departments and sectors"}</h3>
+        </div>
+        <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {aboutContent.departments.map((department) => (
+            <article key={department.id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <h4 className="font-black text-[#efd99e]">{text(department.title, lang)}</h4>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white/65">{text(department.description, lang)}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+      {!people.length && !aboutContent.departments.length ? <div className="mt-10"><EmptyState label={isArabic ? "لم يُضف الهيكل التنظيمي بعد." : "The organization has not been added yet."} /></div> : null}
+    </section>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center text-sm font-bold text-slate-500">{label}</div>;
+}
+
+function AboutSkeleton() {
+  return (
+    <section className="mx-auto max-w-7xl animate-pulse px-5 py-16 sm:px-8 lg:px-12">
+      <div className="h-6 w-40 rounded bg-slate-200" />
+      <div className="mt-4 h-10 max-w-xl rounded bg-slate-200" />
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div className="h-96 rounded-[2rem] bg-slate-200" />
+        <div className="h-96 rounded-[2rem] bg-slate-200" />
+      </div>
+    </section>
   );
 }

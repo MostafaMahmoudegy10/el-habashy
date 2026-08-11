@@ -8,6 +8,13 @@ import type {
   Sector,
   Specification,
   AppSettings,
+  AboutContent,
+  AboutProfile,
+  AboutPerson,
+  AboutDepartment,
+  Certificate,
+  WorkCategory,
+  WorkEntry,
 } from "../types";
 
 export type SectorResponse = {
@@ -43,6 +50,22 @@ export type ListingEngagementResponse = {
 export type AppSettingsResponse = AppSettings & {
   updatedAt: string;
 };
+
+export type AboutImageResponse = {
+  url: string;
+  publicId: string;
+  format: string;
+  width?: number;
+  height?: number;
+  bytes: number;
+};
+
+export type UpdateAboutProfileBody = Omit<AboutProfile, "updatedAt">;
+export type UpsertAboutPersonBody = Omit<AboutPerson, "id" | "updatedAt">;
+export type UpsertAboutDepartmentBody = Omit<AboutDepartment, "id" | "updatedAt">;
+export type UpsertCertificateBody = Omit<Certificate, "id" | "updatedAt">;
+export type UpsertWorkCategoryBody = Omit<WorkCategory, "id" | "entries" | "updatedAt">;
+export type UpsertWorkEntryBody = Omit<WorkEntry, "id" | "categoryId" | "updatedAt">;
 
 export type UpsertListingBody = {
   slug: string;
@@ -99,6 +122,7 @@ export const publicContentApi = {
       { method: "POST" },
     ),
   settings: () => apiRequest<AppSettingsResponse>("/api/v1/public/settings"),
+  about: () => apiRequest<AboutContent>("/api/v1/public/about"),
 };
 
 export type AuthorizedRequest = <T>(
@@ -146,4 +170,45 @@ export const adminContentApi = {
       method: "PUT",
       body: settings,
     }),
+  about: (request: AuthorizedRequest) => request<AboutContent>("/api/v1/admin/about"),
+  updateAboutProfile: (request: AuthorizedRequest, body: UpdateAboutProfileBody) =>
+    request<AboutProfile>("/api/v1/admin/about/profile", { method: "PUT", body }),
+  createAboutPerson: (request: AuthorizedRequest, body: UpsertAboutPersonBody) =>
+    request<AboutPerson>("/api/v1/admin/about/people", { method: "POST", body }),
+  updateAboutPerson: (request: AuthorizedRequest, id: number, body: UpsertAboutPersonBody) =>
+    request<AboutPerson>(`/api/v1/admin/about/people/${id}`, { method: "PUT", body }),
+  deleteAboutPerson: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/about/people/${id}`, { method: "DELETE" }),
+  createAboutDepartment: (request: AuthorizedRequest, body: UpsertAboutDepartmentBody) =>
+    request<AboutDepartment>("/api/v1/admin/about/departments", { method: "POST", body }),
+  updateAboutDepartment: (request: AuthorizedRequest, id: number, body: UpsertAboutDepartmentBody) =>
+    request<AboutDepartment>(`/api/v1/admin/about/departments/${id}`, { method: "PUT", body }),
+  deleteAboutDepartment: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/about/departments/${id}`, { method: "DELETE" }),
+  createAboutCertificate: (request: AuthorizedRequest, body: UpsertCertificateBody) =>
+    request<Certificate>("/api/v1/admin/about/certificates", { method: "POST", body }),
+  updateAboutCertificate: (request: AuthorizedRequest, id: number, body: UpsertCertificateBody) =>
+    request<Certificate>(`/api/v1/admin/about/certificates/${id}`, { method: "PUT", body }),
+  deleteAboutCertificate: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/about/certificates/${id}`, { method: "DELETE" }),
+  createAboutWorkCategory: (request: AuthorizedRequest, body: UpsertWorkCategoryBody) =>
+    request<WorkCategory>("/api/v1/admin/about/work-categories", { method: "POST", body }),
+  updateAboutWorkCategory: (request: AuthorizedRequest, id: number, body: UpsertWorkCategoryBody) =>
+    request<WorkCategory>(`/api/v1/admin/about/work-categories/${id}`, { method: "PUT", body }),
+  deleteAboutWorkCategory: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/about/work-categories/${id}`, { method: "DELETE" }),
+  createAboutWorkEntry: (
+    request: AuthorizedRequest,
+    categoryId: number,
+    body: UpsertWorkEntryBody,
+  ) => request<WorkEntry>(`/api/v1/admin/about/work-categories/${categoryId}/entries`, { method: "POST", body }),
+  updateAboutWorkEntry: (request: AuthorizedRequest, id: number, body: UpsertWorkEntryBody) =>
+    request<WorkEntry>(`/api/v1/admin/about/work-entries/${id}`, { method: "PUT", body }),
+  deleteAboutWorkEntry: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/about/work-entries/${id}`, { method: "DELETE" }),
+  uploadAboutImage: (request: AuthorizedRequest, file: File) => {
+    const multipart = new FormData();
+    multipart.append("file", file, file.name);
+    return request<AboutImageResponse>("/api/v1/admin/about/media", { method: "POST", body: multipart });
+  },
 };
