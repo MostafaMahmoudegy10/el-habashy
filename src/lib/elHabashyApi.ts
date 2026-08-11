@@ -19,6 +19,7 @@ export const elHabashyApi = {
 
 export type {
   AppSettingsResponse,
+  AboutImageResponse,
   AuthorizedRequest,
   ListingEngagementResponse,
   ListingQuery,
@@ -26,6 +27,12 @@ export type {
   ListingSubmissionMedia,
   SectorResponse,
   UpsertListingBody,
+  UpdateAboutProfileBody,
+  UpsertAboutDepartmentBody,
+  UpsertAboutPersonBody,
+  UpsertCertificateBody,
+  UpsertWorkCategoryBody,
+  UpsertWorkEntryBody,
 } from "./contentApi";
 export type {
   AuthResponse,

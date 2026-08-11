@@ -66,100 +66,23 @@ export const initialSectors: Sector[] = [
   },
 ];
 
+
 export const initialAboutContent: AboutContent = {
-  profileImage: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=85",
   profile: {
-    ar: "بدأت نواة الشركة عام 1944 من مكتب شيخ الخبراء المثمنين سيد الحبشي، لتصبح الحبشي للخبراء المثمنين للخبرة والتثمين واحدة من أقدم الجهات المتخصصة في الخبرة والتثمين والمزايدات في مصر. توسعت الخبرة لتشمل العقارات والمنقولات والسيارات والمخلفات والتحف والتحكيم وفض المنازعات.",
-    en: "The company started in 1944 from the office of valuation expert Sayed El Habashy, growing into one of Egypt's long-standing valuation and auction practices. Its expertise covers real estate, movable assets, cars, scrap, antiques, arbitration, and dispute resolution.",
+    headline: { ar: "خبرة ممتدة في التثمين وإدارة المزادات منذ عام 1944", en: "Valuation and auction expertise since 1944" },
+    profile: {
+      ar: "الحبشي للخبراء المثمنين للخبرة والتثمين، خبرة مصرية ممتدة في تقييم الأصول وإدارة المزادات والخبرة الفنية.",
+      en: "El Habashy Valuation Experts for Expertise and Appraisal is a long-established Egyptian practice in asset valuation, auctions and technical expertise.",
+    },
+    mission: { ar: "تقديم تقييمات وخبرات فنية مستقلة وإدارة المزادات بصورة منظمة وشفافة.", en: "To deliver independent valuation and technical expertise through transparent, organized processes." },
+    vision: { ar: "أن تظل الحبشي مرجعًا موثوقًا للخبرة والتثمين في مصر.", en: "To remain a trusted Egyptian reference for expertise and appraisal." },
+    imageUrl: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=85",
+    startedYear: 1944,
   },
-  workCategories: [
-    {
-      id: 1,
-      title: { ar: "البنوك", en: "Banks" },
-      items: [
-        { ar: "البنك الأهلي المصري", en: "National Bank of Egypt" },
-        { ar: "بنك مصر", en: "Banque Misr" },
-        { ar: "البنك التجاري الدولي CIB", en: "Commercial International Bank CIB" },
-        { ar: "بنك فيصل الإسلامي", en: "Faisal Islamic Bank" },
-      ],
-    },
-    {
-      id: 2,
-      title: { ar: "الوزارات والهيئات", en: "Ministries and Authorities" },
-      items: [
-        { ar: "وزارة الإسكان والمجتمعات العمرانية", en: "Ministry of Housing and Urban Communities" },
-        { ar: "الهيئة القومية للإنتاج الحربي", en: "National Organization for Military Production" },
-        { ar: "هيئة الأوقاف المصرية", en: "Egyptian Awqaf Authority" },
-        { ar: "هيئة قناة السويس", en: "Suez Canal Authority" },
-      ],
-    },
-    {
-      id: 3,
-      title: { ar: "الشركات والصناعات", en: "Companies and Industries" },
-      items: [
-        { ar: "النصر لصناعة السيارات", en: "El Nasr Automotive Manufacturing" },
-        { ar: "أبو قير للأسمدة والصناعات الكيماوية", en: "Abu Qir Fertilizers and Chemical Industries" },
-        { ar: "مصر للألومنيوم", en: "Egyptalum" },
-        { ar: "مجموعة شركات أوليمبيك جروب", en: "Olympic Group" },
-      ],
-    },
-    {
-      id: 4,
-      title: { ar: "المحافظات", en: "Governorates" },
-      items: [
-        { ar: "القاهرة", en: "Cairo" },
-        { ar: "الجيزة", en: "Giza" },
-        { ar: "الإسكندرية", en: "Alexandria" },
-        { ar: "السويس", en: "Suez" },
-      ],
-    },
-  ],
-  certificates: [
-    {
-      id: 1,
-      title: { ar: "تقدير التعاون والخبرة المهنية", en: "Professional Expertise Recognition" },
-      date: "2015",
-      description: {
-        ar: "تقدير لمسيرة مهنية ممتدة في أعمال الخبرة والتثمين وإدارة المزادات وخدمة المؤسسات والجهات المختلفة.",
-        en: "Recognition of a long professional track record in valuation, auctions and institutional services.",
-      },
-      image: "https://images.unsplash.com/photo-1589330694653-ded6df03f754?auto=format&fit=crop&w=1200&q=85",
-    },
-    {
-      id: 2,
-      title: { ar: "شهادة تقدير للأداء المؤسسي", en: "Institutional Performance Recognition" },
-      date: "2018",
-      description: { ar: "تقدير للالتزام بالمعايير المهنية والدقة في إعداد تقارير التقييم والخبرة الفنية.", en: "Recognition for professional standards and accuracy in technical valuation reports." },
-      image: "https://images.unsplash.com/photo-1565688527174-775059ac429c?auto=format&fit=crop&w=1200&q=85",
-    },
-    {
-      id: 3,
-      title: { ar: "تكريم سنوات الخبرة والعطاء", en: "Years of Experience Recognition" },
-      date: "2022",
-      description: { ar: "تكريم للخبرة المتراكمة والمساهمة في تطوير خدمات التثمين والتحكيم والاستشارات.", en: "Recognition of accumulated expertise in valuation, arbitration and consulting." },
-      image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
-    },
-  ],
-  structure: {
-    image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=85",
-    leaders: [
-      { ar: "سيد سيد الحبشي", en: "Sayed Sayed El Habashy" },
-      { ar: "سعيد سيد الحبشي", en: "Saied Sayed El Habashy" },
-      { ar: "محمد سيد الحبشي", en: "Mohamed Sayed El Habashy" },
-      { ar: "مصطفى سيد سيد الحبشي", en: "Mostafa Sayed Sayed El Habashy" },
-      { ar: "أحمد سعيد سيد الحبشي", en: "Ahmed Saied Sayed El Habashy" },
-    ],
-    departments: [
-      { ar: "العقارات", en: "Real estate" },
-      { ar: "العدد والمنقولات", en: "Movables and equipment" },
-      { ar: "المخلفات", en: "Scrap and leftovers" },
-      { ar: "التحف", en: "Antiques" },
-      { ar: "الشؤون القانونية", en: "Legal affairs" },
-      { ar: "العلاقات العامة", en: "Public relations" },
-      { ar: "التأمين والمخاطر", en: "Insurance and risk" },
-      { ar: "التمويل العقاري", en: "Mortgage finance" },
-    ],
-  },
+  people: [],
+  departments: [],
+  workCategories: [],
+  certificates: [],
 };
 
 export const initialListings: Listing[] = [

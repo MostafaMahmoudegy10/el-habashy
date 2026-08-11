@@ -24,9 +24,18 @@ import {
   type ListingSubmissionMedia,
   type SectorResponse,
   type UpsertListingBody,
+  type UpdateAboutProfileBody,
+  type UpsertAboutDepartmentBody,
+  type UpsertAboutPersonBody,
+  type UpsertCertificateBody,
+  type UpsertWorkCategoryBody,
+  type UpsertWorkEntryBody,
 } from "../lib/elHabashyApi";
 import type {
   AboutContent,
+  AboutDepartment,
+  AboutPerson,
+  AboutProfile,
   AboutSection,
   AppSettings,
   Certificate,
@@ -42,6 +51,7 @@ import type {
   Page,
   Sector,
   WorkCategory,
+  WorkEntry,
   ServiceArticle,
   ServiceDraft,
 } from "../types";
@@ -62,6 +72,8 @@ type AppContextValue = {
   subscribers: typeof initialSubscribers;
   settings: AppSettings;
   aboutContent: AboutContent;
+  aboutLoading: boolean;
+  aboutError: string;
   sectors: Sector[];
   sectorsLoading: boolean;
   sectorsError: string;
@@ -107,14 +119,24 @@ type AppContextValue = {
   deleteListingMedia: (listingId: number, mediaId: number) => Promise<void>;
   updateSettings: (settings: AppSettings) => Promise<AppSettings>;
   updateSector: (id: ListingCategory, sector: Omit<Sector, "id">) => Promise<Sector>;
-  addWorkCategory: (category: Omit<WorkCategory, "id">) => void;
-  updateWorkCategory: (id: number, category: Omit<WorkCategory, "id">) => void;
-  deleteWorkCategory: (id: number) => void;
-  updateAboutContent: (content: AboutContent) => void;
-  addCertificate: (certificate: Omit<Certificate, "id">) => void;
-  updateCertificate: (id: number, certificate: Omit<Certificate, "id">) => void;
-  deleteCertificate: (id: number) => void;
-  updateStructure: (structure: AboutContent["structure"]) => void;
+  reloadAboutContent: () => Promise<void>;
+  updateAboutProfile: (profile: UpdateAboutProfileBody) => Promise<AboutProfile>;
+  createAboutPerson: (person: UpsertAboutPersonBody) => Promise<AboutPerson>;
+  updateAboutPerson: (id: number, person: UpsertAboutPersonBody) => Promise<AboutPerson>;
+  deleteAboutPerson: (id: number) => Promise<void>;
+  createAboutDepartment: (department: UpsertAboutDepartmentBody) => Promise<AboutDepartment>;
+  updateAboutDepartment: (id: number, department: UpsertAboutDepartmentBody) => Promise<AboutDepartment>;
+  deleteAboutDepartment: (id: number) => Promise<void>;
+  createCertificate: (certificate: UpsertCertificateBody) => Promise<Certificate>;
+  updateCertificate: (id: number, certificate: UpsertCertificateBody) => Promise<Certificate>;
+  deleteCertificate: (id: number) => Promise<void>;
+  createWorkCategory: (category: UpsertWorkCategoryBody) => Promise<WorkCategory>;
+  updateWorkCategory: (id: number, category: UpsertWorkCategoryBody) => Promise<WorkCategory>;
+  deleteWorkCategory: (id: number) => Promise<void>;
+  createWorkEntry: (categoryId: number, entry: UpsertWorkEntryBody) => Promise<WorkEntry>;
+  updateWorkEntry: (id: number, entry: UpsertWorkEntryBody) => Promise<WorkEntry>;
+  deleteWorkEntry: (id: number) => Promise<void>;
+  uploadAboutImage: (file: File) => Promise<string>;
   selectService: (id: number) => void;
   addService: (draft: ServiceDraft) => void;
   updateService: (id: number, draft: ServiceDraft) => void;
@@ -127,7 +149,6 @@ const AppContext = createContext<AppContextValue | null>(null);
 const fallbackImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
 const storageKeys = {
-  aboutContent: "elhabashy:about-content",
   services: "elhabashy:services",
 };
 
@@ -232,37 +253,47 @@ function normalizeSettings(settings: Partial<AppSettings>): AppSettings {
 }
 
 function normalizeAboutContent(content: AboutContent): AboutContent {
-  const storedWork = Array.isArray(content.workCategories) ? content.workCategories : [];
-  const storedCertificates = Array.isArray(content.certificates) ? content.certificates : [];
-  const workCategories = [...storedWork, ...initialAboutContent.workCategories.filter((seed) => !storedWork.some((item) => item.id === seed.id))];
-  const certificates = [...storedCertificates, ...initialAboutContent.certificates.filter((seed) => !storedCertificates.some((item) => item.id === seed.id))];
-  const profile = normalizeText(content.profile ?? initialAboutContent.profile);
   return {
-    ...content,
     profile: {
-      ar: profile.ar.replace("شركة اتحاد الخبراء المثمنين", "الحبشي للخبراء المثمنين للخبرة والتثمين"),
-      en: profile.en.replace("Union of Valuation Experts", "El Habashy Valuation Experts for Expertise & Appraisal"),
+      ...initialAboutContent.profile,
+      ...content.profile,
+      headline: normalizeText(content.profile?.headline ?? initialAboutContent.profile.headline),
+      profile: normalizeText(content.profile?.profile ?? initialAboutContent.profile.profile),
+      mission: normalizeText(content.profile?.mission ?? initialAboutContent.profile.mission),
+      vision: normalizeText(content.profile?.vision ?? initialAboutContent.profile.vision),
+      imageUrl: content.profile?.imageUrl || initialAboutContent.profile.imageUrl,
+      startedYear: content.profile?.startedYear ?? initialAboutContent.profile.startedYear,
     },
-    profileImage: content.profileImage || initialAboutContent.profileImage,
-    workCategories: workCategories.map((category) => ({
+    people: (Array.isArray(content.people) ? content.people : []).map((person) => ({
+      ...person,
+      name: normalizeText(person.name),
+      role: normalizeText(person.role),
+      biography: normalizeText(person.biography),
+    })),
+    departments: (Array.isArray(content.departments) ? content.departments : []).map((department) => ({
+      ...department,
+      title: normalizeText(department.title),
+      description: normalizeText(department.description),
+    })),
+    workCategories: (Array.isArray(content.workCategories) ? content.workCategories : []).map((category) => ({
       ...category,
       title: normalizeText(category.title),
-      items: category.items.map((item) => normalizeText(item)),
+      summary: normalizeText(category.summary),
+      entries: (Array.isArray(category.entries) ? category.entries : []).map((entry) => ({
+        ...entry,
+        title: normalizeText(entry.title),
+        client: normalizeText(entry.client),
+        summary: normalizeText(entry.summary),
+        details: normalizeText(entry.details),
+        location: normalizeText(entry.location),
+      })),
     })),
-    certificates: certificates.map((certificate) => {
-      const seed = initialAboutContent.certificates.find((item) => item.id === certificate.id);
-      return ({
+    certificates: (Array.isArray(content.certificates) ? content.certificates : []).map((certificate) => ({
       ...certificate,
       title: normalizeText(certificate.title),
+      issuer: normalizeText(certificate.issuer),
       description: normalizeText(certificate.description),
-      image: certificate.image || seed?.image,
-    }); }),
-    structure: {
-      ...(content.structure ?? initialAboutContent.structure),
-      image: content.structure?.image || initialAboutContent.structure.image,
-      leaders: (content.structure?.leaders?.length ? content.structure.leaders : initialAboutContent.structure.leaders).map((item) => normalizeText(item)),
-      departments: (content.structure?.departments?.length ? content.structure.departments : initialAboutContent.structure.departments).map((item) => normalizeText(item)),
-    },
+    })),
   };
 }
 
@@ -449,9 +480,9 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [adminListingsLoading, setAdminListingsLoading] = useState(false);
   const [adminListingsError, setAdminListingsError] = useState("");
   const [settings, setSettings] = useState<AppSettings>(() => normalizeSettings(initialSettings));
-  const [aboutContent, setAboutContent] = useState<AboutContent>(() =>
-    normalizeAboutContent(readStored(storageKeys.aboutContent, initialAboutContent)),
-  );
+  const [aboutContent, setAboutContent] = useState<AboutContent>(() => normalizeAboutContent(initialAboutContent));
+  const [aboutLoading, setAboutLoading] = useState(true);
+  const [aboutError, setAboutError] = useState("");
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [sectorsLoading, setSectorsLoading] = useState(true);
   const [sectorsError, setSectorsError] = useState("");
@@ -528,9 +559,25 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const reloadAboutContent = useCallback(async () => {
+    setAboutLoading(true);
+    setAboutError("");
+    try {
+      const response = currentUser?.role === "ADMIN"
+        ? await elHabashyApi.admin.content.about(authorizedRequest)
+        : await elHabashyApi.public.about();
+      setAboutContent(normalizeAboutContent(response));
+    } catch (error) {
+      setAboutError(error instanceof Error ? error.message : "تعذر تحميل محتوى نبذة عن الشركة.");
+      setAboutContent((current) => normalizeAboutContent(current));
+    } finally {
+      setAboutLoading(false);
+    }
+  }, [authorizedRequest, currentUser?.role]);
+
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadFeaturedListings(), loadSectors(), loadPublicSettings()]);
-  }, [loadFeaturedListings, loadPublicListings, loadPublicSettings, loadSectors]);
+    await Promise.all([loadPublicListings(), loadFeaturedListings(), loadSectors(), loadPublicSettings(), reloadAboutContent()]);
+  }, [loadFeaturedListings, loadPublicListings, loadPublicSettings, loadSectors, reloadAboutContent]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -571,6 +618,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     window.localStorage.removeItem("elhabashy:listings");
     window.localStorage.removeItem("elhabashy:sectors");
+    window.localStorage.removeItem("elhabashy:about-content");
   }, []);
 
   useEffect(() => {
@@ -580,10 +628,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void reloadAdminListings();
   }, [reloadAdminListings]);
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKeys.aboutContent, JSON.stringify(aboutContent));
-  }, [aboutContent]);
 
   useEffect(() => {
     window.localStorage.setItem(storageKeys.services, JSON.stringify(services));
@@ -606,6 +650,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       subscribers: initialSubscribers,
       settings,
       aboutContent,
+      aboutLoading,
+      aboutError,
       sectors,
       sectorsLoading,
       sectorsError,
@@ -812,61 +858,101 @@ export function AppProvider({ children }: PropsWithChildren) {
         setToast(t.success);
         return updated;
       },
-      addWorkCategory(category) {
-        const nextId = Math.max(0, ...aboutContent.workCategories.map((item) => item.id)) + 1;
-        setAboutContent((current) => ({
-          ...current,
-          workCategories: [...current.workCategories, { id: nextId, ...category }],
-        }));
+      reloadAboutContent,
+      async updateAboutProfile(profile) {
+        const updated = await elHabashyApi.admin.content.updateAboutProfile(authorizedRequest, profile);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async createAboutPerson(person) {
+        const created = await elHabashyApi.admin.content.createAboutPerson(authorizedRequest, person);
+        await reloadAboutContent();
+        setToast(t.success);
+        return created;
+      },
+      async updateAboutPerson(id, person) {
+        const updated = await elHabashyApi.admin.content.updateAboutPerson(authorizedRequest, id, person);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteAboutPerson(id) {
+        await elHabashyApi.admin.content.deleteAboutPerson(authorizedRequest, id);
+        await reloadAboutContent();
         setToast(t.success);
       },
-      updateWorkCategory(id, category) {
-        setAboutContent((current) => ({
-          ...current,
-          workCategories: current.workCategories.map((item) => (item.id === id ? { id, ...category } : item)),
-        }));
+      async createAboutDepartment(department) {
+        const created = await elHabashyApi.admin.content.createAboutDepartment(authorizedRequest, department);
+        await reloadAboutContent();
+        setToast(t.success);
+        return created;
+      },
+      async updateAboutDepartment(id, department) {
+        const updated = await elHabashyApi.admin.content.updateAboutDepartment(authorizedRequest, id, department);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteAboutDepartment(id) {
+        await elHabashyApi.admin.content.deleteAboutDepartment(authorizedRequest, id);
+        await reloadAboutContent();
         setToast(t.success);
       },
-      deleteWorkCategory(id) {
-        setAboutContent((current) => ({
-          ...current,
-          workCategories: current.workCategories.filter((item) => item.id !== id),
-        }));
+      async createCertificate(certificate) {
+        const created = await elHabashyApi.admin.content.createAboutCertificate(authorizedRequest, certificate);
+        await reloadAboutContent();
+        setToast(t.success);
+        return created;
+      },
+      async updateCertificate(id, certificate) {
+        const updated = await elHabashyApi.admin.content.updateAboutCertificate(authorizedRequest, id, certificate);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteCertificate(id) {
+        await elHabashyApi.admin.content.deleteAboutCertificate(authorizedRequest, id);
+        await reloadAboutContent();
         setToast(t.success);
       },
-      addCertificate(certificate) {
-        const nextId = Math.max(0, ...aboutContent.certificates.map((item) => item.id)) + 1;
-        setAboutContent((current) =>
-          normalizeAboutContent({
-            ...current,
-            certificates: [...current.certificates, { id: nextId, ...certificate }],
-          }),
-        );
+      async createWorkCategory(category) {
+        const created = await elHabashyApi.admin.content.createAboutWorkCategory(authorizedRequest, category);
+        await reloadAboutContent();
+        setToast(t.success);
+        return created;
+      },
+      async updateWorkCategory(id, category) {
+        const updated = await elHabashyApi.admin.content.updateAboutWorkCategory(authorizedRequest, id, category);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteWorkCategory(id) {
+        await elHabashyApi.admin.content.deleteAboutWorkCategory(authorizedRequest, id);
+        await reloadAboutContent();
         setToast(t.success);
       },
-      updateCertificate(id, certificate) {
-        setAboutContent((current) =>
-          normalizeAboutContent({
-            ...current,
-            certificates: current.certificates.map((item) => (item.id === id ? { id, ...certificate } : item)),
-          }),
-        );
+      async createWorkEntry(categoryId, entry) {
+        const created = await elHabashyApi.admin.content.createAboutWorkEntry(authorizedRequest, categoryId, entry);
+        await reloadAboutContent();
+        setToast(t.success);
+        return created;
+      },
+      async updateWorkEntry(id, entry) {
+        const updated = await elHabashyApi.admin.content.updateAboutWorkEntry(authorizedRequest, id, entry);
+        await reloadAboutContent();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteWorkEntry(id) {
+        await elHabashyApi.admin.content.deleteAboutWorkEntry(authorizedRequest, id);
+        await reloadAboutContent();
         setToast(t.success);
       },
-      deleteCertificate(id) {
-        setAboutContent((current) => ({
-          ...current,
-          certificates: current.certificates.filter((item) => item.id !== id),
-        }));
-        setToast(t.success);
-      },
-      updateStructure(structure) {
-        setAboutContent((current) => normalizeAboutContent({ ...current, structure }));
-        setToast(t.success);
-      },
-      updateAboutContent(content) {
-        setAboutContent(normalizeAboutContent(content));
-        setToast(t.success);
+      async uploadAboutImage(file) {
+        const response = await elHabashyApi.admin.content.uploadAboutImage(authorizedRequest, file);
+        return response.url;
       },
       selectService(id) {
         setSelectedServiceId(id);
@@ -895,6 +981,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       authorizedRequest,
       currentUser,
       aboutContent,
+      aboutLoading,
+      aboutError,
       aboutSection,
       dashboardView,
       lang,
@@ -908,6 +996,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       mobileOpen,
       page,
       reloadAdminListings,
+      reloadAboutContent,
       reloadContent,
       selectedListing,
       selectedListingDetail,

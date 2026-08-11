@@ -6,6 +6,7 @@ import {
   FiArrowLeft,
   FiArrowRight,
   FiBarChart2,
+  FiBriefcase,
   FiCalendar,
   FiCheckCircle,
   FiEdit3,
@@ -31,7 +32,7 @@ import { getSectorTitle } from "../lib/sectors";
 import { listingToDraft, useApp } from "../context/AppContext";
 import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
-import type { AboutContent, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
+import type { AboutContent, AboutDepartment, AboutPerson, AboutProfile, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, WorkEntry, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
 import { useAuth } from "../context/AuthContext";
 import type { AuthUser, ListingSubmissionMedia, PageResponse, UserRole } from "../lib/elHabashyApi";
 import { ApiError } from "../lib/api";
@@ -92,10 +93,6 @@ export function DashboardPage() {
     updateListingStatus,
     updateSettings,
     updateSector,
-    addWorkCategory,
-    updateWorkCategory,
-    deleteWorkCategory,
-    updateAboutContent,
     addService,
     updateService,
     deleteService,
@@ -378,11 +375,6 @@ export function DashboardPage() {
           <AboutContentPanel
             view={dashboardView}
             content={aboutContent}
-            onSaveContent={updateAboutContent}
-            categories={aboutContent.workCategories}
-            onAdd={addWorkCategory}
-            onUpdate={updateWorkCategory}
-            onDelete={deleteWorkCategory}
           />
         ) : null}
 
@@ -1193,7 +1185,7 @@ function ListingForm({
                 disabled={saving || mediaBusy || Boolean(savedListing)}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-7 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {lang === "ar" ? "حفظ الخطوة والمتابعة" : "Save step & continue"}
+                {lang === "ar" ? "متابعة للخطوة التالية" : "Continue to the next step"}
                 {lang === "ar" ? <FiArrowLeft /> : <FiArrowRight />}
               </button>
             ) : (
@@ -1245,352 +1237,272 @@ function ListingForm({
   );
 }
 
-type WorkCategoryDraft = {
-  titleAr: string;
-  titleEn: string;
-  itemsAr: string;
-  itemsEn: string;
-};
-
-const emptyWorkCategoryDraft: WorkCategoryDraft = {
-  titleAr: "",
-  titleEn: "",
-  itemsAr: "",
-  itemsEn: "",
-};
-
-function categoryToDraft(category: WorkCategory): WorkCategoryDraft {
-  return {
-    titleAr: category.title.ar,
-    titleEn: category.title.en,
-    itemsAr: category.items.map((item) => item.ar).join("\n"),
-    itemsEn: category.items.map((item) => item.en).join("\n"),
-  };
-}
-
-function draftToCategory(draft: WorkCategoryDraft): Omit<WorkCategory, "id"> {
-  const arItems = draft.itemsAr.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-  const enItems = draft.itemsEn.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-  const max = Math.max(arItems.length, enItems.length);
-  return {
-    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
-    items: Array.from({ length: max }, (_, index) => ({
-      ar: arItems[index] || enItems[index] || "",
-      en: enItems[index] || arItems[index] || "",
-    })).filter((item) => item.ar || item.en),
-  };
-}
-
-type CertificateDraft = {
-  titleAr: string;
-  titleEn: string;
-  descriptionAr: string;
-  descriptionEn: string;
-  date: string;
-};
-
-const emptyCertificateDraft: CertificateDraft = {
-  titleAr: "",
-  titleEn: "",
-  descriptionAr: "",
-  descriptionEn: "",
-  date: "",
-};
-
-function certificateToDraft(certificate: Certificate): CertificateDraft {
-  return {
-    titleAr: certificate.title.ar,
-    titleEn: certificate.title.en,
-    descriptionAr: certificate.description.ar,
-    descriptionEn: certificate.description.en,
-    date: certificate.date,
-  };
-}
-
-function draftToCertificate(draft: CertificateDraft): Omit<Certificate, "id"> {
-  return {
-    title: {
-      ar: draft.titleAr,
-      en: draft.titleEn || draft.titleAr,
-    },
-    description: {
-      ar: draft.descriptionAr,
-      en: draft.descriptionEn || draft.descriptionAr,
-    },
-    date: draft.date,
-  };
-}
-
-type StructureDraft = {
-  leadersAr: string;
-  leadersEn: string;
-  departmentsAr: string;
-  departmentsEn: string;
-};
-
-function splitLines(value: string) {
-  return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-}
-
-function structureToDraft(structure: AboutContent["structure"]): StructureDraft {
-  return {
-    leadersAr: structure.leaders.map((item) => item.ar).join("\n"),
-    leadersEn: structure.leaders.map((item) => item.en).join("\n"),
-    departmentsAr: structure.departments.map((item) => item.ar).join("\n"),
-    departmentsEn: structure.departments.map((item) => item.en).join("\n"),
-  };
-}
-
-function draftToLocalizedList(ar: string, en: string) {
-  const arItems = splitLines(ar);
-  const enItems = splitLines(en);
-  const max = Math.max(arItems.length, enItems.length);
-  return Array.from({ length: max }, (_, index) => ({
-    ar: arItems[index] || enItems[index] || "",
-    en: enItems[index] || arItems[index] || "",
-  })).filter((item) => item.ar || item.en);
-}
-
-function draftToStructure(draft: StructureDraft): AboutContent["structure"] {
-  return {
-    leaders: draftToLocalizedList(draft.leadersAr, draft.leadersEn),
-    departments: draftToLocalizedList(draft.departmentsAr, draft.departmentsEn),
-  };
-}
-
-function AboutContentPanel({
-  view,
-  content,
-  onSaveContent,
-  categories,
-  onAdd,
-  onUpdate,
-  onDelete,
-}: {
-  view: DashboardView;
-  content: AboutContent;
-  onSaveContent: (content: AboutContent) => void;
-  categories: WorkCategory[];
-  onAdd: (category: Omit<WorkCategory, "id">) => void;
-  onUpdate: (id: number, category: Omit<WorkCategory, "id">) => void;
-  onDelete: (id: number) => void;
-}) {
-  const { lang, t } = useApp();
-  const [draft, setDraft] = useState<WorkCategoryDraft>(emptyWorkCategoryDraft);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [mainContent, setMainContent] = useState<AboutContent>(content);
-  const [certificateDraft, setCertificateDraft] = useState<CertificateDraft>(emptyCertificateDraft);
-  const [editingCertificateId, setEditingCertificateId] = useState<number | null>(null);
-  const [structureDraft, setStructureDraft] = useState<StructureDraft>(() => structureToDraft(content.structure));
+function AboutContentPanel({ view, content }: { view: DashboardView; content: AboutContent }) {
+  const { lang } = useApp();
   const showProfile = view === "about-profile" || view === "about-content";
   const showStructure = view === "about-structure" || view === "about-content";
   const showCertificates = view === "about-certificates" || view === "about-content";
   const showWork = view === "about-work" || view === "about-content";
-
-  const saveMainContent = (nextContent: AboutContent) => {
-    setMainContent(nextContent);
-    onSaveContent(nextContent);
-  };
-
-  const patch = <K extends keyof WorkCategoryDraft>(key: K, value: WorkCategoryDraft[K]) => {
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  const editCategory = (category: WorkCategory) => {
-    setEditingId(category.id);
-    setDraft(categoryToDraft(category));
-  };
-
-  const reset = () => {
-    setEditingId(null);
-    setDraft(emptyWorkCategoryDraft);
-  };
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const payload = draftToCategory(draft);
-    if (editingId) {
-      onUpdate(editingId, payload);
-    } else {
-      onAdd(payload);
-    }
-    reset();
-  };
-
-  const patchCertificate = <K extends keyof CertificateDraft>(key: K, value: CertificateDraft[K]) => {
-    setCertificateDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  const editCertificate = (certificate: Certificate) => {
-    setEditingCertificateId(certificate.id);
-    setCertificateDraft(certificateToDraft(certificate));
-  };
-
-  const resetCertificate = () => {
-    setEditingCertificateId(null);
-    setCertificateDraft(emptyCertificateDraft);
-  };
-
-  const submitCertificate = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const payload = draftToCertificate(certificateDraft);
-    const nextCertificates = editingCertificateId
-      ? mainContent.certificates.map((item) => (item.id === editingCertificateId ? { id: editingCertificateId, ...payload } : item))
-      : [{ id: Math.max(0, ...mainContent.certificates.map((item) => item.id)) + 1, ...payload }, ...mainContent.certificates];
-    saveMainContent({ ...mainContent, certificates: nextCertificates });
-    resetCertificate();
-  };
-
-  const deleteCertificate = (id: number) => {
-    saveMainContent({ ...mainContent, certificates: mainContent.certificates.filter((item) => item.id !== id) });
-  };
-
-  const submitStructure = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    saveMainContent({ ...mainContent, structure: draftToStructure(structureDraft) });
-  };
-
   return (
     <div className="grid gap-6">
-      {showProfile ? (
-        <Panel title={t.aboutProfile} icon={FiEdit3} action={<Button icon={FiSave} onClick={() => saveMainContent(mainContent)}>{lang === "ar" ? "حفظ" : "Save"}</Button>}>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Textarea label={`${t.aboutProfile} AR`} value={mainContent.profile.ar} onChange={(value) => setMainContent((current) => ({ ...current, profile: { ...current.profile, ar: value } }))} />
-            <Textarea label={`${t.aboutProfile} EN`} value={mainContent.profile.en} onChange={(value) => setMainContent((current) => ({ ...current, profile: { ...current.profile, en: value } }))} />
-          </div>
-        </Panel>
-      ) : null}
-
-      {showStructure ? (
-        <Panel title={t.organizationStructure} icon={FiUsers}>
-          <form onSubmit={submitStructure} className="grid gap-5">
-            <div className="grid gap-4 lg:grid-cols-3">
-              <Textarea label={t.leadersAr} value={structureDraft.leadersAr} onChange={(value) => setStructureDraft((current) => ({ ...current, leadersAr: value }))} />
-              <Textarea label={t.leadersEn} value={structureDraft.leadersEn} onChange={(value) => setStructureDraft((current) => ({ ...current, leadersEn: value }))} />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-3">
-              <Textarea label={t.departmentsAr} value={structureDraft.departmentsAr} onChange={(value) => setStructureDraft((current) => ({ ...current, departmentsAr: value }))} />
-              <Textarea label={t.departmentsEn} value={structureDraft.departmentsEn} onChange={(value) => setStructureDraft((current) => ({ ...current, departmentsEn: value }))} />
-            </div>
-            <button type="submit" className="inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white">
-              <FiSave />
-              {t.saveStructure}
-            </button>
-          </form>
-        </Panel>
-      ) : null}
-
-      {showCertificates ? (
-        <Panel title={t.honorCertificates} icon={FiFileText}>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="grid content-start gap-3">
-              {mainContent.certificates.length ? (
-                mainContent.certificates.map((certificate) => (
-                  <article key={certificate.id} className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                    <div>
-                      <strong className="block text-lg font-black text-slate-950">{certificate.title[lang]}</strong>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs font-black text-slate-500">
-                        <span>{certificate.date || "-"}</span>
-                        <span>{certificate.title.ar}</span>
-                        <span>{certificate.title.en}</span>
-                      </div>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <button type="button" onClick={() => editCertificate(certificate)} className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 hover:border-amber-300">
-                        {t.edit}
-                      </button>
-                      <button type="button" onClick={() => deleteCertificate(certificate.id)} className="grid h-11 place-items-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700">
-                        <FiTrash2 />
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-black text-slate-500">
-                  {t.emptyState}
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={submitCertificate} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xl font-black text-slate-950">{editingCertificateId ? t.editCertificate : t.addCertificate}</h3>
-                {editingCertificateId ? (
-                  <button type="button" onClick={resetCertificate} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">
-                    {lang === "ar" ? "إلغاء" : "Cancel"}
-                  </button>
-                ) : null}
-              </div>
-              <Field label={t.certificateTitleAr} value={certificateDraft.titleAr} onChange={(value) => patchCertificate("titleAr", value)} required />
-              <Field label={t.certificateTitleEn} value={certificateDraft.titleEn} onChange={(value) => patchCertificate("titleEn", value)} />
-              <Field label={t.certificateDate} value={certificateDraft.date} onChange={(value) => patchCertificate("date", value)} />
-              <Textarea label={t.certificateDescriptionAr} value={certificateDraft.descriptionAr} onChange={(value) => patchCertificate("descriptionAr", value)} />
-              <Textarea label={t.certificateDescriptionEn} value={certificateDraft.descriptionEn} onChange={(value) => patchCertificate("descriptionEn", value)} />
-              <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15">
-                <FiSave />
-                {t.saveCertificate}
-              </button>
-            </form>
-          </div>
-        </Panel>
-      ) : null}
-
-      {showWork ? <Panel title={t.aboutContent} icon={FiFolderPlus}>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid gap-3">
-            {categories.length ? (
-              categories.map((category) => (
-                <article key={category.id} className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                  <div>
-                    <strong className="block text-lg font-black text-slate-950">{category.title[lang]}</strong>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-black text-slate-500">
-                      <span>{category.items.length} {t.itemCount}</span>
-                      <span>{category.title.ar}</span>
-                      <span>{category.title.en}</span>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={() => editCategory(category)} className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 hover:border-amber-300">
-                      {t.edit}
-                    </button>
-                    <button type="button" onClick={() => onDelete(category.id)} className="grid h-11 place-items-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700">
-                      <FiTrash2 />
-                    </button>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-black text-slate-500">
-                {t.emptyState}
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={submit} className="h-fit rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-xl font-black text-slate-950">{editingId ? t.editWorkCategory : t.addWorkCategory}</h3>
-              {editingId ? (
-                <button type="button" onClick={reset} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">
-                  {lang === "ar" ? "إلغاء" : "Cancel"}
-                </button>
-              ) : null}
-            </div>
-            <div className="grid gap-4">
-              <Field label={t.categoryTitleAr} value={draft.titleAr} onChange={(value) => patch("titleAr", value)} required />
-              <Field label={t.categoryTitleEn} value={draft.titleEn} onChange={(value) => patch("titleEn", value)} />
-              <Textarea label={t.categoryItemsAr} value={draft.itemsAr} onChange={(value) => patch("itemsAr", value)} />
-              <Textarea label={t.categoryItemsEn} value={draft.itemsEn} onChange={(value) => patch("itemsEn", value)} />
-              <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white shadow-lg shadow-slate-950/15">
-                <FiSave />
-                {t.saveCategory}
-              </button>
-            </div>
-          </form>
+      {showProfile ? <AboutProfileEditor profile={content.profile} /> : null}
+      {showStructure ? <OrganizationEditor people={content.people} departments={content.departments} /> : null}
+      {showCertificates ? <CertificatesEditor certificates={content.certificates} /> : null}
+      {showWork ? <PreviousWorkEditor categories={content.workCategories} /> : null}
+      {!showProfile && !showStructure && !showCertificates && !showWork ? (
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm font-black text-slate-500">
+          {lang === "ar" ? "اختر قسمًا من قائمة نبذة الشركة." : "Choose an About section from the menu."}
         </div>
-      </Panel> : null}
+      ) : null}
     </div>
   );
 }
+
+type ProfileDraft = {
+  headlineAr: string; headlineEn: string; profileAr: string; profileEn: string;
+  missionAr: string; missionEn: string; visionAr: string; visionEn: string;
+  imageUrl: string; startedYear: string;
+};
+
+function profileDraft(profile: AboutProfile): ProfileDraft {
+  return {
+    headlineAr: profile.headline.ar, headlineEn: profile.headline.en,
+    profileAr: profile.profile.ar, profileEn: profile.profile.en,
+    missionAr: profile.mission.ar, missionEn: profile.mission.en,
+    visionAr: profile.vision.ar, visionEn: profile.vision.en,
+    imageUrl: profile.imageUrl || "", startedYear: String(profile.startedYear),
+  };
+}
+
+function useDeferredImage(initialUrl = "") {
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState(initialUrl);
+  const localPreviewRef = useRef<string | null>(null);
+
+  const releaseLocalPreview = () => {
+    if (!localPreviewRef.current) return;
+    URL.revokeObjectURL(localPreviewRef.current);
+    localPreviewRef.current = null;
+  };
+
+  const choose = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    releaseLocalPreview();
+    const localPreview = URL.createObjectURL(selected);
+    localPreviewRef.current = localPreview;
+    setFile(selected);
+    setPreviewUrl(localPreview);
+    event.target.value = "";
+  };
+
+  const reset = (url = "") => {
+    releaseLocalPreview();
+    setFile(null);
+    setPreviewUrl(url);
+  };
+
+  useEffect(() => () => releaseLocalPreview(), []);
+
+  return { file, previewUrl, choose, reset };
+}
+
+function AboutProfileEditor({ profile }: { profile: AboutProfile }) {
+  const { lang, updateAboutProfile, uploadAboutImage } = useApp();
+  const [draft, setDraft] = useState(() => profileDraft(profile));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const image = useDeferredImage(profile.imageUrl || "");
+  useEffect(() => {
+    setDraft(profileDraft(profile));
+    image.reset(profile.imageUrl || "");
+  }, [profile]);
+  const patch = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError("");
+    try {
+      const imageUrl = image.file ? await uploadAboutImage(image.file) : draft.imageUrl || undefined;
+      if (image.file && imageUrl) {
+        patch("imageUrl", imageUrl);
+        image.reset(imageUrl);
+      }
+      await updateAboutProfile({
+        headline: { ar: draft.headlineAr, en: draft.headlineEn || draft.headlineAr },
+        profile: { ar: draft.profileAr, en: draft.profileEn || draft.profileAr },
+        mission: { ar: draft.missionAr, en: draft.missionEn || draft.missionAr },
+        vision: { ar: draft.visionAr, en: draft.visionEn || draft.visionAr },
+        imageUrl,
+        startedYear: Number(draft.startedYear),
+      });
+    } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ النبذة." : "Could not save the profile.")); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Panel title={lang === "ar" ? "نبذة الشركة ورسالتها" : "Company profile and purpose"} icon={FiEdit3}>
+      <form onSubmit={submit} className="grid gap-6">
+        {error ? <AdminError message={error} /> : null}
+        <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="grid content-start gap-4 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
+            {image.previewUrl ? <LazyImage src={image.previewUrl} alt="" className="aspect-[4/3] w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}
+            <FileInput label={lang === "ar" ? "صورة النبذة" : "Profile image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={saving} onChange={image.choose} />
+            {image.file ? <PendingImageNotice file={image.file} lang={lang} /> : null}
+            <Field label={lang === "ar" ? "سنة بداية الخبرة" : "Established year"} type="number" value={draft.startedYear} onChange={(value) => patch("startedYear", value)} required />
+          </div>
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-2"><Field label="العنوان الرئيسي بالعربية" value={draft.headlineAr} onChange={(v) => patch("headlineAr", v)} required /><Field label="Headline in English" value={draft.headlineEn} onChange={(v) => patch("headlineEn", v)} required /></div>
+            <div className="grid gap-4 lg:grid-cols-2"><Textarea label="نبذة الشركة بالعربية" value={draft.profileAr} onChange={(v) => patch("profileAr", v)} /><Textarea label="Company profile in English" value={draft.profileEn} onChange={(v) => patch("profileEn", v)} /></div>
+            <div className="grid gap-4 lg:grid-cols-2"><Textarea label="الرسالة بالعربية" value={draft.missionAr} onChange={(v) => patch("missionAr", v)} /><Textarea label="Mission in English" value={draft.missionEn} onChange={(v) => patch("missionEn", v)} /></div>
+            <div className="grid gap-4 lg:grid-cols-2"><Textarea label="الرؤية بالعربية" value={draft.visionAr} onChange={(v) => patch("visionAr", v)} /><Textarea label="Vision in English" value={draft.visionEn} onChange={(v) => patch("visionEn", v)} /></div>
+          </div>
+        </div>
+        <Button type="submit" icon={saving ? FiLoader : FiSave} disabled={saving}>{lang === "ar" ? "حفظ نبذة الشركة" : "Save company profile"}</Button>
+      </form>
+    </Panel>
+  );
+}
+
+type PersonDraft = { nameAr: string; nameEn: string; roleAr: string; roleEn: string; biographyAr: string; biographyEn: string; imageUrl: string; displayOrder: string; active: boolean };
+const emptyPerson: PersonDraft = { nameAr: "", nameEn: "", roleAr: "", roleEn: "", biographyAr: "", biographyEn: "", imageUrl: "", displayOrder: "0", active: true };
+function personDraft(person?: AboutPerson): PersonDraft { return person ? { nameAr: person.name.ar, nameEn: person.name.en, roleAr: person.role.ar, roleEn: person.role.en, biographyAr: person.biography.ar, biographyEn: person.biography.en, imageUrl: person.imageUrl || "", displayOrder: String(person.displayOrder), active: person.active } : { ...emptyPerson }; }
+
+type DepartmentDraft = { titleAr: string; titleEn: string; descriptionAr: string; descriptionEn: string; displayOrder: string };
+const emptyDepartment: DepartmentDraft = { titleAr: "", titleEn: "", descriptionAr: "", descriptionEn: "", displayOrder: "0" };
+function departmentDraft(item?: AboutDepartment): DepartmentDraft { return item ? { titleAr: item.title.ar, titleEn: item.title.en, descriptionAr: item.description.ar, descriptionEn: item.description.en, displayOrder: String(item.displayOrder) } : { ...emptyDepartment }; }
+
+function OrganizationEditor({ people, departments }: { people: AboutPerson[]; departments: AboutDepartment[] }) {
+  const { lang, createAboutPerson, updateAboutPerson, deleteAboutPerson, createAboutDepartment, updateAboutDepartment, deleteAboutDepartment, uploadAboutImage } = useApp();
+  const [person, setPerson] = useState<PersonDraft>({ ...emptyPerson });
+  const [personId, setPersonId] = useState<number | null>(null);
+  const [department, setDepartment] = useState<DepartmentDraft>({ ...emptyDepartment });
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const personImage = useDeferredImage();
+  const pPatch = <K extends keyof PersonDraft>(key: K, value: PersonDraft[K]) => setPerson((current) => ({ ...current, [key]: value }));
+  const dPatch = <K extends keyof DepartmentDraft>(key: K, value: DepartmentDraft[K]) => setDepartment((current) => ({ ...current, [key]: value }));
+  const resetPerson = () => { setPersonId(null); setPerson({ ...emptyPerson, displayOrder: String(people.length) }); personImage.reset(); };
+  const editPerson = (item: AboutPerson) => { setPersonId(item.id); setPerson(personDraft(item)); personImage.reset(item.imageUrl || ""); };
+  const resetDepartment = () => { setDepartmentId(null); setDepartment({ ...emptyDepartment, displayOrder: String(departments.length) }); };
+  const savePerson = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      const imageUrl = personImage.file ? await uploadAboutImage(personImage.file) : person.imageUrl || undefined;
+      if (personImage.file && imageUrl) {
+        pPatch("imageUrl", imageUrl);
+        personImage.reset(imageUrl);
+      }
+      const payload = { name: { ar: person.nameAr, en: person.nameEn || person.nameAr }, role: { ar: person.roleAr, en: person.roleEn || person.roleAr }, biography: { ar: person.biographyAr, en: person.biographyEn || person.biographyAr }, imageUrl, displayOrder: Number(person.displayOrder), active: person.active };
+      personId ? await updateAboutPerson(personId, payload) : await createAboutPerson(payload);
+      resetPerson();
+    }
+    catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الشخص." : "Could not save the person.")); }
+    finally { setBusy(false); }
+  };
+  const saveDepartment = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError("");
+    const payload = { title: { ar: department.titleAr, en: department.titleEn || department.titleAr }, description: { ar: department.descriptionAr, en: department.descriptionEn || department.descriptionAr }, displayOrder: Number(department.displayOrder) };
+    try { departmentId ? await updateAboutDepartment(departmentId, payload) : await createAboutDepartment(payload); resetDepartment(); }
+    catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الإدارة." : "Could not save the department.")); }
+    finally { setBusy(false); }
+  };
+  const removePerson = async (id: number) => { if (!confirmDeleteAbout(lang, "person")) return; setBusy(true); try { await deleteAboutPerson(id); if (personId === id) resetPerson(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
+  const removeDepartment = async (id: number) => { if (!confirmDeleteAbout(lang, "department")) return; setBusy(true); try { await deleteAboutDepartment(id); if (departmentId === id) resetDepartment(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
+  return (
+    <div className="grid gap-6">
+      {error ? <AdminError message={error} /> : null}
+      <Panel title={lang === "ar" ? "الأشخاص والخبراء" : "People and experts"} icon={FiUsers}>
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className="grid content-start gap-3 sm:grid-cols-2">
+            {people.map((item) => <article key={item.id} className={`overflow-hidden rounded-3xl border bg-white ${item.active ? "border-slate-200" : "border-amber-300 opacity-75"}`}>
+              <div className="grid grid-cols-[92px_1fr] items-stretch">
+                {item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="h-full min-h-32 w-full object-cover object-top" /> : <div className="grid min-h-32 place-items-center bg-emerald-950 text-3xl font-black text-amber-300">{item.name[lang].charAt(0)}</div>}
+                <div className="p-4"><strong className="block text-base font-black text-slate-950">{item.name[lang]}</strong><small className="mt-1 block font-bold text-amber-700">{item.role[lang]}</small><p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{item.biography[lang]}</p></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-3"><button type="button" onClick={() => editPerson(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void removePerson(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div>
+            </article>)}
+          </div>
+          <form onSubmit={savePerson} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
+            <EditorTitle editing={Boolean(personId)} lang={lang} nounAr="شخص" nounEn="person" onCancel={resetPerson} />
+            {personImage.previewUrl ? <LazyImage src={personImage.previewUrl} alt="" className="h-44 w-full rounded-2xl object-cover object-top" /> : <ImagePlaceholder />}
+            <FileInput label={lang === "ar" ? "صورة الشخص" : "Person photo"} button={lang === "ar" ? "اختيار صورة" : "Choose photo"} disabled={busy} onChange={personImage.choose} />
+            {personImage.file ? <PendingImageNotice file={personImage.file} lang={lang} /> : null}
+            <div className="grid gap-3 sm:grid-cols-2"><Field label="الاسم بالعربية" value={person.nameAr} onChange={(v) => pPatch("nameAr", v)} required /><Field label="Name in English" value={person.nameEn} onChange={(v) => pPatch("nameEn", v)} required /></div>
+            <div className="grid gap-3 sm:grid-cols-2"><Field label="الدور بالعربية" value={person.roleAr} onChange={(v) => pPatch("roleAr", v)} required /><Field label="Role in English" value={person.roleEn} onChange={(v) => pPatch("roleEn", v)} required /></div>
+            <div className="grid gap-3 sm:grid-cols-2"><Textarea label="نبذة بالعربية" value={person.biographyAr} onChange={(v) => pPatch("biographyAr", v)} /><Textarea label="Biography in English" value={person.biographyEn} onChange={(v) => pPatch("biographyEn", v)} /></div>
+            <Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={person.displayOrder} onChange={(v) => pPatch("displayOrder", v)} required />
+            <label className="flex items-center gap-3 rounded-2xl bg-white p-4 text-sm font-black"><input type="checkbox" checked={person.active} onChange={(e) => pPatch("active", e.target.checked)} />{lang === "ar" ? "ظاهر في الموقع" : "Visible on website"}</label>
+            <Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ الشخص" : "Save person"}</Button>
+          </form>
+        </div>
+      </Panel>
+      <Panel title={lang === "ar" ? "الإدارات والقطاعات" : "Departments and sectors"} icon={FiLayers}>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid content-start gap-3 md:grid-cols-2">{departments.map((item) => <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><strong className="text-lg font-black">{item.title[lang]}</strong><p className="mt-2 text-sm font-semibold leading-6 text-slate-500">{item.description[lang]}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black">{item.displayOrder}</span></div><div className="mt-4 flex gap-2"><button type="button" onClick={() => { setDepartmentId(item.id); setDepartment(departmentDraft(item)); }} className="h-10 flex-1 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeDepartment(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div>
+          <form onSubmit={saveDepartment} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(departmentId)} lang={lang} nounAr="إدارة" nounEn="department" onCancel={resetDepartment} /><Field label="اسم الإدارة بالعربية" value={department.titleAr} onChange={(v) => dPatch("titleAr", v)} required /><Field label="Department in English" value={department.titleEn} onChange={(v) => dPatch("titleEn", v)} required /><Textarea label="الوصف بالعربية" value={department.descriptionAr} onChange={(v) => dPatch("descriptionAr", v)} /><Textarea label="Description in English" value={department.descriptionEn} onChange={(v) => dPatch("descriptionEn", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={department.displayOrder} onChange={(v) => dPatch("displayOrder", v)} required /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ الإدارة" : "Save department"}</Button></form>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+type CertificateDraftNew = { titleAr: string; titleEn: string; issuerAr: string; issuerEn: string; descriptionAr: string; descriptionEn: string; issueDate: string; imageUrl: string; displayOrder: string };
+const emptyCertificateNew: CertificateDraftNew = { titleAr: "", titleEn: "", issuerAr: "", issuerEn: "", descriptionAr: "", descriptionEn: "", issueDate: "", imageUrl: "", displayOrder: "0" };
+function certificateDraftNew(item?: Certificate): CertificateDraftNew { return item ? { titleAr: item.title.ar, titleEn: item.title.en, issuerAr: item.issuer.ar, issuerEn: item.issuer.en, descriptionAr: item.description.ar, descriptionEn: item.description.en, issueDate: item.issueDate || "", imageUrl: item.imageUrl || "", displayOrder: String(item.displayOrder) } : { ...emptyCertificateNew }; }
+
+function CertificatesEditor({ certificates }: { certificates: Certificate[] }) {
+  const { lang, createCertificate, updateCertificate, deleteCertificate, uploadAboutImage } = useApp();
+  const [draft, setDraft] = useState<CertificateDraftNew>({ ...emptyCertificateNew });
+  const [editing, setEditing] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const image = useDeferredImage();
+  const patch = <K extends keyof CertificateDraftNew>(key: K, value: CertificateDraftNew[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const reset = () => { setEditing(null); setDraft({ ...emptyCertificateNew, displayOrder: String(certificates.length) }); image.reset(); };
+  const edit = (item: Certificate) => { setEditing(item.id); setDraft(certificateDraftNew(item)); image.reset(item.imageUrl || ""); };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      const imageUrl = image.file ? await uploadAboutImage(image.file) : draft.imageUrl || undefined;
+      if (image.file && imageUrl) {
+        patch("imageUrl", imageUrl);
+        image.reset(imageUrl);
+      }
+      const payload = { title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr }, issuer: { ar: draft.issuerAr, en: draft.issuerEn || draft.issuerAr }, description: { ar: draft.descriptionAr, en: draft.descriptionEn || draft.descriptionAr }, issueDate: draft.issueDate || undefined, imageUrl, displayOrder: Number(draft.displayOrder) };
+      editing ? await updateCertificate(editing, payload) : await createCertificate(payload);
+      reset();
+    } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الشهادة." : "Could not save certificate.")); }
+    finally { setBusy(false); }
+  };
+  const remove = async (id: number) => { if (!confirmDeleteAbout(lang, "certificate")) return; setBusy(true); try { await deleteCertificate(id); if (editing === id) reset(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
+  return <Panel title={lang === "ar" ? "شهادات التقدير" : "Certificates and recognition"} icon={FiFileText}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">{error ? <div className="xl:col-span-2"><AdminError message={error} /></div> : null}<div className="grid content-start gap-4 md:grid-cols-2">{certificates.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/10] w-full object-cover" /> : <ImagePlaceholder />}<div className="p-5"><small className="font-black text-amber-700">{item.issueDate?.slice(0, 4) || "—"} · {item.issuer[lang]}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.description[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => edit(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void remove(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={submit} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(editing)} lang={lang} nounAr="شهادة" nounEn="certificate" onCancel={reset} />{image.previewUrl ? <LazyImage src={image.previewUrl} alt="" className="h-48 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة الشهادة" : "Certificate image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={busy} onChange={image.choose} />{image.file ? <PendingImageNotice file={image.file} lang={lang} /> : null}<div className="grid gap-3 sm:grid-cols-2"><Field label="عنوان الشهادة بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required /><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الجهة المانحة بالعربية" value={draft.issuerAr} onChange={(v) => patch("issuerAr", v)} required /><Field label="Issuer in English" value={draft.issuerEn} onChange={(v) => patch("issuerEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "تاريخ الشهادة" : "Issue date"} type="date" value={draft.issueDate} onChange={(v) => patch("issueDate", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={draft.displayOrder} onChange={(v) => patch("displayOrder", v)} required /></div><Textarea label="الوصف بالعربية" value={draft.descriptionAr} onChange={(v) => patch("descriptionAr", v)} /><Textarea label="Description in English" value={draft.descriptionEn} onChange={(v) => patch("descriptionEn", v)} /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ الشهادة" : "Save certificate"}</Button></form></div></Panel>;
+}
+
+type CategoryDraftNew = { titleAr: string; titleEn: string; summaryAr: string; summaryEn: string; displayOrder: string };
+const emptyCategoryNew: CategoryDraftNew = { titleAr: "", titleEn: "", summaryAr: "", summaryEn: "", displayOrder: "0" };
+function categoryDraftNew(item?: WorkCategory): CategoryDraftNew { return item ? { titleAr: item.title.ar, titleEn: item.title.en, summaryAr: item.summary.ar, summaryEn: item.summary.en, displayOrder: String(item.displayOrder) } : { ...emptyCategoryNew }; }
+type EntryDraft = { categoryId: string; titleAr: string; titleEn: string; clientAr: string; clientEn: string; summaryAr: string; summaryEn: string; detailsAr: string; detailsEn: string; locationAr: string; locationEn: string; projectYear: string; imageUrl: string; displayOrder: string };
+const emptyEntry: EntryDraft = { categoryId: "", titleAr: "", titleEn: "", clientAr: "", clientEn: "", summaryAr: "", summaryEn: "", detailsAr: "", detailsEn: "", locationAr: "", locationEn: "", projectYear: "", imageUrl: "", displayOrder: "0" };
+function entryDraft(item?: WorkEntry): EntryDraft { return item ? { categoryId: String(item.categoryId), titleAr: item.title.ar, titleEn: item.title.en, clientAr: item.client.ar, clientEn: item.client.en, summaryAr: item.summary.ar, summaryEn: item.summary.en, detailsAr: item.details.ar, detailsEn: item.details.en, locationAr: item.location.ar, locationEn: item.location.en, projectYear: item.projectYear ? String(item.projectYear) : "", imageUrl: item.imageUrl || "", displayOrder: String(item.displayOrder) } : { ...emptyEntry }; }
+
+function PreviousWorkEditor({ categories }: { categories: WorkCategory[] }) {
+  const { lang, createWorkCategory, updateWorkCategory, deleteWorkCategory, createWorkEntry, updateWorkEntry, deleteWorkEntry, uploadAboutImage } = useApp();
+  const [category, setCategory] = useState<CategoryDraftNew>({ ...emptyCategoryNew }); const [categoryId, setCategoryId] = useState<number | null>(null); const [entry, setEntry] = useState<EntryDraft>(() => ({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "" })); const [entryId, setEntryId] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const entryImage = useDeferredImage();
+  const entries = categories.flatMap((item) => item.entries);
+  useEffect(() => { if (!entry.categoryId && categories[0]) setEntry((current) => ({ ...current, categoryId: String(categories[0].id) })); }, [categories, entry.categoryId]);
+  const cPatch = <K extends keyof CategoryDraftNew>(key: K, value: CategoryDraftNew[K]) => setCategory((current) => ({ ...current, [key]: value })); const ePatch = <K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) => setEntry((current) => ({ ...current, [key]: value })); const resetCategory = () => { setCategoryId(null); setCategory({ ...emptyCategoryNew, displayOrder: String(categories.length) }); }; const resetEntry = () => { setEntryId(null); setEntry({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "", displayOrder: String(entries.length) }); entryImage.reset(); };
+  const editEntry = (item: WorkEntry) => { setEntryId(item.id); setEntry(entryDraft(item)); entryImage.reset(item.imageUrl || ""); };
+  const saveCategory = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(""); const payload = { title: { ar: category.titleAr, en: category.titleEn || category.titleAr }, summary: { ar: category.summaryAr, en: category.summaryEn || category.summaryAr }, displayOrder: Number(category.displayOrder) }; try { categoryId ? await updateWorkCategory(categoryId, payload) : await createWorkCategory(payload); resetCategory(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ التصنيف." : "Could not save category.")); } finally { setBusy(false); } };
+  const saveEntry = async (event: FormEvent) => { event.preventDefault(); if (!entry.categoryId) { setError(lang === "ar" ? "أضف تصنيفًا واختره أولًا." : "Add and select a category first."); return; } setBusy(true); setError(""); try { const imageUrl = entryImage.file ? await uploadAboutImage(entryImage.file) : entry.imageUrl || undefined; if (entryImage.file && imageUrl) { ePatch("imageUrl", imageUrl); entryImage.reset(imageUrl); } const payload = { title: { ar: entry.titleAr, en: entry.titleEn || entry.titleAr }, client: { ar: entry.clientAr, en: entry.clientEn || entry.clientAr }, summary: { ar: entry.summaryAr, en: entry.summaryEn || entry.summaryAr }, details: { ar: entry.detailsAr, en: entry.detailsEn || entry.detailsAr }, projectYear: entry.projectYear ? Number(entry.projectYear) : undefined, location: { ar: entry.locationAr, en: entry.locationEn || entry.locationAr }, imageUrl, displayOrder: Number(entry.displayOrder) }; entryId ? await updateWorkEntry(entryId, payload) : await createWorkEntry(Number(entry.categoryId), payload); resetEntry(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ المشروع." : "Could not save project.")); } finally { setBusy(false); } };
+  const removeCategory = async (id: number) => { if (!confirmDeleteAbout(lang, "category")) return; setBusy(true); try { await deleteWorkCategory(id); if (categoryId === id) resetCategory(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } }; const removeEntry = async (id: number) => { if (!confirmDeleteAbout(lang, "entry")) return; setBusy(true); try { await deleteWorkEntry(id); if (entryId === id) resetEntry(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
+  return <div className="grid gap-6">{error ? <AdminError message={error} /> : null}<Panel title={lang === "ar" ? "تصنيفات سابقة الأعمال" : "Previous-work categories"} icon={FiFolderPlus}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"><div className="grid content-start gap-3 md:grid-cols-2">{categories.map((item) => <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><strong className="text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><small className="mt-3 block font-black text-amber-700">{item.entries.length} {lang === "ar" ? "مشروع" : "projects"}</small></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black">{item.displayOrder}</span></div><div className="mt-4 flex gap-2"><button type="button" onClick={() => { setCategoryId(item.id); setCategory(categoryDraftNew(item)); }} className="h-10 flex-1 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeCategory(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div><form onSubmit={saveCategory} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(categoryId)} lang={lang} nounAr="تصنيف" nounEn="category" onCancel={resetCategory} /><Field label="اسم التصنيف بالعربية" value={category.titleAr} onChange={(v) => cPatch("titleAr", v)} required /><Field label="Category in English" value={category.titleEn} onChange={(v) => cPatch("titleEn", v)} required /><Textarea label="ملخص التصنيف بالعربية" value={category.summaryAr} onChange={(v) => cPatch("summaryAr", v)} /><Textarea label="Category summary in English" value={category.summaryEn} onChange={(v) => cPatch("summaryEn", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={category.displayOrder} onChange={(v) => cPatch("displayOrder", v)} required /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ التصنيف" : "Save category"}</Button></form></div></Panel><Panel title={lang === "ar" ? "المشروعات والتفاصيل" : "Projects and details"} icon={FiBriefcase}><div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_500px]"><div className="grid content-start gap-4 md:grid-cols-2">{entries.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/8] w-full object-cover" /> : null}<div className="p-5"><small className="font-black text-amber-700">{item.client[lang]} {item.projectYear ? `· ${item.projectYear}` : ""}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => editEntry(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeEntry(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={saveEntry} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(entryId)} lang={lang} nounAr="مشروع" nounEn="project" onCancel={resetEntry} /><Select label={lang === "ar" ? "التصنيف" : "Category"} value={entry.categoryId} onChange={(v) => ePatch("categoryId", v)}>{!categories.length ? <option value="">{lang === "ar" ? "أضف تصنيفًا أولًا" : "Add a category first"}</option> : null}{categories.map((item) => <option key={item.id} value={item.id}>{item.title[lang]}</option>)}</Select>{entryImage.previewUrl ? <LazyImage src={entryImage.previewUrl} alt="" className="h-44 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة المشروع" : "Project image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={busy} onChange={entryImage.choose} />{entryImage.file ? <PendingImageNotice file={entryImage.file} lang={lang} /> : null}<div className="grid gap-3 sm:grid-cols-2"><Field label="اسم المشروع بالعربية" value={entry.titleAr} onChange={(v) => ePatch("titleAr", v)} required /><Field label="Project in English" value={entry.titleEn} onChange={(v) => ePatch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="العميل بالعربية" value={entry.clientAr} onChange={(v) => ePatch("clientAr", v)} required /><Field label="Client in English" value={entry.clientEn} onChange={(v) => ePatch("clientEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الموقع بالعربية" value={entry.locationAr} onChange={(v) => ePatch("locationAr", v)} required /><Field label="Location in English" value={entry.locationEn} onChange={(v) => ePatch("locationEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "سنة المشروع" : "Project year"} type="number" value={entry.projectYear} onChange={(v) => ePatch("projectYear", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={entry.displayOrder} onChange={(v) => ePatch("displayOrder", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="الملخص بالعربية" value={entry.summaryAr} onChange={(v) => ePatch("summaryAr", v)} /><Textarea label="Summary in English" value={entry.summaryEn} onChange={(v) => ePatch("summaryEn", v)} /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="التفاصيل بالعربية" value={entry.detailsAr} onChange={(v) => ePatch("detailsAr", v)} /><Textarea label="Details in English" value={entry.detailsEn} onChange={(v) => ePatch("detailsEn", v)} /></div><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ المشروع" : "Save project"}</Button></form></div></Panel></div>;
+}
+
+function EditorTitle({ editing, lang, nounAr, nounEn, onCancel }: { editing: boolean; lang: "ar" | "en"; nounAr: string; nounEn: string; onCancel: () => void }) { return <div className="flex items-center justify-between gap-3"><h3 className="text-xl font-black">{lang === "ar" ? `${editing ? "تعديل" : "إضافة"} ${nounAr}` : `${editing ? "Edit" : "Add"} ${nounEn}`}</h3>{editing ? <button type="button" onClick={onCancel} className="rounded-full border bg-white px-4 py-2 text-xs font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button> : null}</div>; }
+function PendingImageNotice({ file, lang }: { file: File; lang: "ar" | "en" }) { return <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">{lang === "ar" ? `تم اختيار ${file.name} — لن تُرفع إلا عند الحفظ.` : `${file.name} selected — it will upload only when you save.`}</p>; }
+function ImagePlaceholder() { return <div className="grid h-36 place-items-center rounded-2xl bg-gradient-to-br from-emerald-950 to-emerald-800 text-4xl text-amber-300"><FiUploadCloud /></div>; }
+function AdminError({ message }: { message: string }) { return <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700"><FiAlertCircle />{message}</div>; }
+function confirmDeleteAbout(lang: "ar" | "en", type: string) { return window.confirm(lang === "ar" ? "هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه الخطوة." : `Delete this ${type}? This cannot be undone.`); }
 
 const emptyServiceDraft: ServiceDraft = { kind: "arbitration", titleAr: "", titleEn: "", summaryAr: "", summaryEn: "", contentAr: "", contentEn: "", image: "", gallery: [], featured: true };
 

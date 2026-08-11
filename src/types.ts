@@ -172,7 +172,24 @@ export type AppSettings = {
 export type WorkCategory = {
   id: number;
   title: LocalizedText;
-  items: LocalizedText[];
+  summary: LocalizedText;
+  displayOrder: number;
+  entries: WorkEntry[];
+  updatedAt?: string;
+};
+
+export type WorkEntry = {
+  id: number;
+  categoryId: number;
+  title: LocalizedText;
+  client: LocalizedText;
+  summary: LocalizedText;
+  details: LocalizedText;
+  projectYear?: number;
+  location: LocalizedText;
+  imageUrl?: string;
+  displayOrder: number;
+  updatedAt?: string;
 };
 
 export type Sector = {
@@ -186,21 +203,49 @@ export type Sector = {
 export type Certificate = {
   id: number;
   title: LocalizedText;
-  date: string;
+  issuer: LocalizedText;
   description: LocalizedText;
-  image?: string;
+  issueDate?: string;
+  imageUrl?: string;
+  displayOrder: number;
+  updatedAt?: string;
+};
+
+export type AboutProfile = {
+  headline: LocalizedText;
+  profile: LocalizedText;
+  mission: LocalizedText;
+  vision: LocalizedText;
+  imageUrl?: string;
+  startedYear: number;
+  updatedAt?: string;
+};
+
+export type AboutPerson = {
+  id: number;
+  name: LocalizedText;
+  role: LocalizedText;
+  biography: LocalizedText;
+  imageUrl?: string;
+  displayOrder: number;
+  active: boolean;
+  updatedAt?: string;
+};
+
+export type AboutDepartment = {
+  id: number;
+  title: LocalizedText;
+  description: LocalizedText;
+  displayOrder: number;
+  updatedAt?: string;
 };
 
 export type AboutContent = {
-  profile: LocalizedText;
-  profileImage?: string;
+  profile: AboutProfile;
+  people: AboutPerson[];
+  departments: AboutDepartment[];
   workCategories: WorkCategory[];
   certificates: Certificate[];
-  structure: {
-    image?: string;
-    leaders: LocalizedText[];
-    departments: LocalizedText[];
-  };
 };
 
 export type ServiceKind = "arbitration" | "valuation" | "consulting";
