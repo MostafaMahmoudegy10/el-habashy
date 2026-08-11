@@ -9,10 +9,14 @@ import {
   FiTarget,
   FiUsers,
 } from "react-icons/fi";
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { LazyImage } from "../components/LazyImage";
 import { useApp } from "../context/AppContext";
 import type { AboutSection, LocalizedText } from "../types";
+import heroExpertise from "../assets/about/about-hero-expertise.webp";
+import heroProperty from "../assets/about/about-hero-property.webp";
+import heroVehicles from "../assets/about/about-hero-vehicles.webp";
 
 const sectionMeta: Record<AboutSection, { icon: typeof FiUsers; ar: string; en: string }> = {
   profile: { icon: FiCompass, ar: "نبذة عن الشركة", en: "Company profile" },
@@ -36,26 +40,54 @@ export function AboutPage() {
   } = useApp();
   const isArabic = lang === "ar";
   const profile = aboutContent.profile;
+  const reduceMotion = useReducedMotion();
 
   return (
     <main className="overflow-hidden bg-[#f7f7f3] text-slate-950">
-      <section className="relative isolate overflow-hidden bg-[#072f24] text-white">
-        <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_15%_20%,#d3af67_0,transparent_28%),radial-gradient(circle_at_85%_80%,#15805f_0,transparent_32%)]" />
+      <section className="relative isolate overflow-hidden bg-[#052a20] text-white">
+        <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:72px_72px]" />
+        <motion.div
+          aria-hidden="true"
+          animate={reduceMotion ? undefined : { opacity: [0.22, 0.38, 0.22], scale: [1, 1.08, 1] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -start-24 top-10 h-80 w-80 rounded-full bg-[#d3af67]/25 blur-[110px]"
+        />
+        <motion.div
+          aria-hidden="true"
+          animate={reduceMotion ? undefined : { opacity: [0.18, 0.3, 0.18], y: [0, -24, 0] }}
+          transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -end-24 bottom-0 h-96 w-96 rounded-full bg-emerald-500/25 blur-[130px]"
+        />
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#d3af67]/70 to-transparent" />
-        <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-16 sm:px-8 lg:px-12 lg:pb-16 lg:pt-24">
-          <div className="max-w-4xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#d3af67]/40 bg-white/5 px-4 py-2 text-xs font-black tracking-[0.18em] text-[#efd99e]">
-              <FiCheckCircle /> {isArabic ? `خبرة منذ ${profile.startedYear}` : `Trusted since ${profile.startedYear}`}
-            </span>
-            <h1 className="mt-6 text-4xl font-black leading-[1.25] sm:text-5xl lg:text-6xl">
-              {text(profile.headline, lang)}
-            </h1>
-            <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-emerald-50/75 sm:text-lg">
-              {text(profile.profile, lang)}
-            </p>
+
+        <div className="relative mx-auto max-w-7xl px-5 pb-10 pt-14 sm:px-8 lg:px-12 lg:pb-14 lg:pt-20">
+          <div className="grid items-center gap-12 lg:grid-cols-[0.88fr_1.12fr] xl:gap-16">
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10"
+            >
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#d3af67]/40 bg-white/[0.07] px-4 py-2 text-xs font-black tracking-[0.14em] text-[#efd99e] backdrop-blur-md">
+                <FiCheckCircle /> {isArabic ? `خبرة منذ ${profile.startedYear}` : `Trusted since ${profile.startedYear}`}
+              </span>
+              <h1 className="mt-6 text-4xl font-black leading-[1.22] sm:text-5xl lg:text-[3.55rem] xl:text-[4.1rem]">
+                {text(profile.headline, lang)}
+              </h1>
+              <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-emerald-50/75 sm:text-lg">
+                {text(profile.profile, lang)}
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <HeroPill icon={FiAward}>{isArabic ? "خبراء معتمدون" : "Accredited experts"}</HeroPill>
+                <HeroPill icon={FiTarget}>{isArabic ? "تقييمات دقيقة" : "Precise valuations"}</HeroPill>
+                <HeroPill icon={FiBriefcase}>{isArabic ? "خبرة متعددة القطاعات" : "Multi-sector expertise"}</HeroPill>
+              </div>
+            </motion.div>
+
+            <HeroGallery isArabic={isArabic} reduceMotion={Boolean(reduceMotion)} />
           </div>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-3 border-t border-white/10 pt-7 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
             {(Object.keys(sectionMeta) as AboutSection[]).map((section) => {
               const item = sectionMeta[section];
               const Icon = item.icon;
@@ -65,14 +97,15 @@ export function AboutPage() {
                   type="button"
                   key={section}
                   onClick={() => navigateAbout(section)}
-                  className={`flex items-center gap-3 rounded-2xl border px-4 py-4 text-start text-sm font-black transition ${
+                  className={`relative flex items-center gap-3 overflow-hidden rounded-2xl border px-4 py-4 text-start text-sm font-black transition ${
                     active
-                      ? "border-[#d3af67] bg-[#d3af67] text-[#092e24] shadow-xl shadow-black/20"
+                      ? "border-[#d3af67] text-[#092e24] shadow-xl shadow-black/20"
                       : "border-white/15 bg-white/5 text-white hover:border-[#d3af67]/60 hover:bg-white/10"
                   }`}
                 >
-                  <Icon className="text-lg" />
-                  {isArabic ? item.ar : item.en}
+                  {active ? <motion.span layoutId="about-active-section" className="absolute inset-0 bg-[#d3af67]" transition={{ type: "spring", stiffness: 340, damping: 30 }} /> : null}
+                  <Icon className="relative z-10 text-lg" />
+                  <span className="relative z-10">{isArabic ? item.ar : item.en}</span>
                 </button>
               );
             })}
@@ -88,11 +121,79 @@ export function AboutPage() {
           </div>
         </div>
       ) : null}
-      {!aboutLoading && aboutSection === "profile" ? <ProfileSection /> : null}
-      {!aboutLoading && aboutSection === "previous-work" ? <PreviousWorkSection /> : null}
-      {!aboutLoading && aboutSection === "certificates" ? <CertificatesSection /> : null}
-      {!aboutLoading && aboutSection === "structure" ? <OrganizationSection /> : null}
+      {!aboutLoading ? (
+        <motion.div
+          key={aboutSection}
+          initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {aboutSection === "profile" ? <ProfileSection /> : null}
+          {aboutSection === "previous-work" ? <PreviousWorkSection /> : null}
+          {aboutSection === "certificates" ? <CertificatesSection /> : null}
+          {aboutSection === "structure" ? <OrganizationSection /> : null}
+        </motion.div>
+      ) : null}
     </main>
+  );
+}
+
+function HeroPill({ icon: Icon, children }: { icon: typeof FiAward; children: ReactNode }) {
+  return <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-xs font-black text-white/85 backdrop-blur"><Icon className="text-[#e5c77d]" />{children}</span>;
+}
+
+function HeroGallery({ isArabic, reduceMotion }: { isArabic: boolean; reduceMotion: boolean }) {
+  const cards = [
+    { src: heroVehicles, ar: "تقييم السيارات", en: "Vehicle valuation", delay: 0.22 },
+    { src: heroProperty, ar: "التقييم العقاري", en: "Property valuation", delay: 0.34 },
+  ];
+
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, scale: 0.96, y: 30 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.85, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+      className="relative"
+    >
+      <div className="absolute -inset-3 rounded-[2.35rem] border border-[#d3af67]/20" />
+      <div className="relative grid h-[420px] grid-cols-2 grid-rows-[1.45fr_0.8fr] gap-3 overflow-hidden rounded-[2rem] border border-white/15 bg-white/10 p-3 shadow-[0_35px_90px_-35px_rgba(0,0,0,.75)] backdrop-blur-sm sm:h-[520px]">
+        <motion.div
+          whileHover={reduceMotion ? undefined : { scale: 1.012 }}
+          className="group relative col-span-2 overflow-hidden rounded-[1.4rem]"
+        >
+          <LazyImage eager src={heroExpertise} alt={isArabic ? "خبراء الحبشي في التقييم والتثمين" : "El Habashy valuation experts"} wrapperClassName="absolute inset-0" className="h-full w-full object-cover transition duration-1000 group-hover:scale-105" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#031d16]/85 via-transparent to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 sm:p-6">
+            <div>
+              <p className="text-xs font-black tracking-[0.16em] text-[#e7cb83]">{isArabic ? "الحبشي" : "EL HABASHY"}</p>
+              <p className="mt-1 text-lg font-black text-white sm:text-xl">{isArabic ? "خبرة تحمي قيمة أصولك" : "Expertise that protects asset value"}</p>
+            </div>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d3af67] text-[#052a20]"><FiCheckCircle /></span>
+          </div>
+        </motion.div>
+
+        {cards.map((card) => (
+          <motion.div
+            key={card.en}
+            initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: card.delay, ease: [0.22, 1, 0.36, 1] }}
+            whileHover={reduceMotion ? undefined : { y: -4 }}
+            className="group relative overflow-hidden rounded-[1.25rem]"
+          >
+            <LazyImage eager src={card.src} alt={isArabic ? card.ar : card.en} wrapperClassName="absolute inset-0" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#031d16]/80 via-transparent to-transparent" />
+            <p className="absolute inset-x-0 bottom-0 p-4 text-xs font-black text-white sm:text-sm">{isArabic ? card.ar : card.en}</p>
+          </motion.div>
+        ))}
+      </div>
+      <motion.span
+        aria-hidden="true"
+        animate={reduceMotion ? undefined : { y: [0, -8, 0], rotate: [0, 2, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute -end-4 -top-4 h-16 w-16 rounded-2xl border border-[#d3af67]/50 bg-[#d3af67]/10 backdrop-blur"
+      />
+    </motion.div>
   );
 }
 
