@@ -1185,7 +1185,7 @@ function ListingForm({
                 disabled={saving || mediaBusy || Boolean(savedListing)}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-7 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-500 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {lang === "ar" ? "حفظ الخطوة والمتابعة" : "Save step & continue"}
+                {lang === "ar" ? "متابعة للخطوة التالية" : "Continue to the next step"}
                 {lang === "ar" ? <FiArrowLeft /> : <FiArrowRight />}
               </button>
             ) : (
@@ -1274,31 +1274,64 @@ function profileDraft(profile: AboutProfile): ProfileDraft {
   };
 }
 
+function useDeferredImage(initialUrl = "") {
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState(initialUrl);
+  const localPreviewRef = useRef<string | null>(null);
+
+  const releaseLocalPreview = () => {
+    if (!localPreviewRef.current) return;
+    URL.revokeObjectURL(localPreviewRef.current);
+    localPreviewRef.current = null;
+  };
+
+  const choose = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    releaseLocalPreview();
+    const localPreview = URL.createObjectURL(selected);
+    localPreviewRef.current = localPreview;
+    setFile(selected);
+    setPreviewUrl(localPreview);
+    event.target.value = "";
+  };
+
+  const reset = (url = "") => {
+    releaseLocalPreview();
+    setFile(null);
+    setPreviewUrl(url);
+  };
+
+  useEffect(() => () => releaseLocalPreview(), []);
+
+  return { file, previewUrl, choose, reset };
+}
+
 function AboutProfileEditor({ profile }: { profile: AboutProfile }) {
   const { lang, updateAboutProfile, uploadAboutImage } = useApp();
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => setDraft(profileDraft(profile)), [profile]);
+  const image = useDeferredImage(profile.imageUrl || "");
+  useEffect(() => {
+    setDraft(profileDraft(profile));
+    image.reset(profile.imageUrl || "");
+  }, [profile]);
   const patch = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploading(true); setError("");
-    try { patch("imageUrl", await uploadAboutImage(file)); }
-    catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر رفع الصورة." : "Image upload failed.")); }
-    finally { setUploading(false); event.target.value = ""; }
-  };
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError("");
     try {
+      const imageUrl = image.file ? await uploadAboutImage(image.file) : draft.imageUrl || undefined;
+      if (image.file && imageUrl) {
+        patch("imageUrl", imageUrl);
+        image.reset(imageUrl);
+      }
       await updateAboutProfile({
         headline: { ar: draft.headlineAr, en: draft.headlineEn || draft.headlineAr },
         profile: { ar: draft.profileAr, en: draft.profileEn || draft.profileAr },
         mission: { ar: draft.missionAr, en: draft.missionEn || draft.missionAr },
         vision: { ar: draft.visionAr, en: draft.visionEn || draft.visionAr },
-        imageUrl: draft.imageUrl || undefined,
+        imageUrl,
         startedYear: Number(draft.startedYear),
       });
     } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ النبذة." : "Could not save the profile.")); }
@@ -1310,8 +1343,9 @@ function AboutProfileEditor({ profile }: { profile: AboutProfile }) {
         {error ? <AdminError message={error} /> : null}
         <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
           <div className="grid content-start gap-4 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
-            {draft.imageUrl ? <LazyImage src={draft.imageUrl} alt="" className="aspect-[4/3] w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}
-            <FileInput label={lang === "ar" ? "صورة النبذة" : "Profile image"} button={uploading ? (lang === "ar" ? "جارٍ الرفع..." : "Uploading...") : (lang === "ar" ? "رفع صورة" : "Upload image")} disabled={uploading} onChange={upload} />
+            {image.previewUrl ? <LazyImage src={image.previewUrl} alt="" className="aspect-[4/3] w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}
+            <FileInput label={lang === "ar" ? "صورة النبذة" : "Profile image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={saving} onChange={image.choose} />
+            {image.file ? <PendingImageNotice file={image.file} lang={lang} /> : null}
             <Field label={lang === "ar" ? "سنة بداية الخبرة" : "Established year"} type="number" value={draft.startedYear} onChange={(value) => patch("startedYear", value)} required />
           </div>
           <div className="grid gap-4">
@@ -1342,23 +1376,25 @@ function OrganizationEditor({ people, departments }: { people: AboutPerson[]; de
   const [department, setDepartment] = useState<DepartmentDraft>({ ...emptyDepartment });
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const personImage = useDeferredImage();
   const pPatch = <K extends keyof PersonDraft>(key: K, value: PersonDraft[K]) => setPerson((current) => ({ ...current, [key]: value }));
   const dPatch = <K extends keyof DepartmentDraft>(key: K, value: DepartmentDraft[K]) => setDepartment((current) => ({ ...current, [key]: value }));
-  const resetPerson = () => { setPersonId(null); setPerson({ ...emptyPerson, displayOrder: String(people.length) }); };
+  const resetPerson = () => { setPersonId(null); setPerson({ ...emptyPerson, displayOrder: String(people.length) }); personImage.reset(); };
+  const editPerson = (item: AboutPerson) => { setPersonId(item.id); setPerson(personDraft(item)); personImage.reset(item.imageUrl || ""); };
   const resetDepartment = () => { setDepartmentId(null); setDepartment({ ...emptyDepartment, displayOrder: String(departments.length) }); };
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    setUploading(true); setError("");
-    try { pPatch("imageUrl", await uploadAboutImage(file)); }
-    catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر رفع الصورة." : "Image upload failed.")); }
-    finally { setUploading(false); event.target.value = ""; }
-  };
   const savePerson = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
-    const payload = { name: { ar: person.nameAr, en: person.nameEn || person.nameAr }, role: { ar: person.roleAr, en: person.roleEn || person.roleAr }, biography: { ar: person.biographyAr, en: person.biographyEn || person.biographyAr }, imageUrl: person.imageUrl || undefined, displayOrder: Number(person.displayOrder), active: person.active };
-    try { personId ? await updateAboutPerson(personId, payload) : await createAboutPerson(payload); resetPerson(); }
+    try {
+      const imageUrl = personImage.file ? await uploadAboutImage(personImage.file) : person.imageUrl || undefined;
+      if (personImage.file && imageUrl) {
+        pPatch("imageUrl", imageUrl);
+        personImage.reset(imageUrl);
+      }
+      const payload = { name: { ar: person.nameAr, en: person.nameEn || person.nameAr }, role: { ar: person.roleAr, en: person.roleEn || person.roleAr }, biography: { ar: person.biographyAr, en: person.biographyEn || person.biographyAr }, imageUrl, displayOrder: Number(person.displayOrder), active: person.active };
+      personId ? await updateAboutPerson(personId, payload) : await createAboutPerson(payload);
+      resetPerson();
+    }
     catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الشخص." : "Could not save the person.")); }
     finally { setBusy(false); }
   };
@@ -1382,19 +1418,20 @@ function OrganizationEditor({ people, departments }: { people: AboutPerson[]; de
                 {item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="h-full min-h-32 w-full object-cover object-top" /> : <div className="grid min-h-32 place-items-center bg-emerald-950 text-3xl font-black text-amber-300">{item.name[lang].charAt(0)}</div>}
                 <div className="p-4"><strong className="block text-base font-black text-slate-950">{item.name[lang]}</strong><small className="mt-1 block font-bold text-amber-700">{item.role[lang]}</small><p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">{item.biography[lang]}</p></div>
               </div>
-              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-3"><button type="button" onClick={() => { setPersonId(item.id); setPerson(personDraft(item)); }} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void removePerson(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-3"><button type="button" onClick={() => editPerson(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void removePerson(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div>
             </article>)}
           </div>
           <form onSubmit={savePerson} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
             <EditorTitle editing={Boolean(personId)} lang={lang} nounAr="شخص" nounEn="person" onCancel={resetPerson} />
-            {person.imageUrl ? <LazyImage src={person.imageUrl} alt="" className="h-44 w-full rounded-2xl object-cover object-top" /> : <ImagePlaceholder />}
-            <FileInput label={lang === "ar" ? "صورة الشخص" : "Person photo"} button={uploading ? (lang === "ar" ? "جارٍ الرفع..." : "Uploading...") : (lang === "ar" ? "رفع صورة" : "Upload photo")} disabled={uploading} onChange={upload} />
+            {personImage.previewUrl ? <LazyImage src={personImage.previewUrl} alt="" className="h-44 w-full rounded-2xl object-cover object-top" /> : <ImagePlaceholder />}
+            <FileInput label={lang === "ar" ? "صورة الشخص" : "Person photo"} button={lang === "ar" ? "اختيار صورة" : "Choose photo"} disabled={busy} onChange={personImage.choose} />
+            {personImage.file ? <PendingImageNotice file={personImage.file} lang={lang} /> : null}
             <div className="grid gap-3 sm:grid-cols-2"><Field label="الاسم بالعربية" value={person.nameAr} onChange={(v) => pPatch("nameAr", v)} required /><Field label="Name in English" value={person.nameEn} onChange={(v) => pPatch("nameEn", v)} required /></div>
             <div className="grid gap-3 sm:grid-cols-2"><Field label="الدور بالعربية" value={person.roleAr} onChange={(v) => pPatch("roleAr", v)} required /><Field label="Role in English" value={person.roleEn} onChange={(v) => pPatch("roleEn", v)} required /></div>
             <div className="grid gap-3 sm:grid-cols-2"><Textarea label="نبذة بالعربية" value={person.biographyAr} onChange={(v) => pPatch("biographyAr", v)} /><Textarea label="Biography in English" value={person.biographyEn} onChange={(v) => pPatch("biographyEn", v)} /></div>
             <Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={person.displayOrder} onChange={(v) => pPatch("displayOrder", v)} required />
             <label className="flex items-center gap-3 rounded-2xl bg-white p-4 text-sm font-black"><input type="checkbox" checked={person.active} onChange={(e) => pPatch("active", e.target.checked)} />{lang === "ar" ? "ظاهر في الموقع" : "Visible on website"}</label>
-            <Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy || uploading}>{lang === "ar" ? "حفظ الشخص" : "Save person"}</Button>
+            <Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ الشخص" : "Save person"}</Button>
           </form>
         </div>
       </Panel>
@@ -1414,12 +1451,30 @@ function certificateDraftNew(item?: Certificate): CertificateDraftNew { return i
 
 function CertificatesEditor({ certificates }: { certificates: Certificate[] }) {
   const { lang, createCertificate, updateCertificate, deleteCertificate, uploadAboutImage } = useApp();
-  const [draft, setDraft] = useState<CertificateDraftNew>({ ...emptyCertificateNew }); const [editing, setEditing] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [uploading, setUploading] = useState(false); const [error, setError] = useState("");
-  const patch = <K extends keyof CertificateDraftNew>(key: K, value: CertificateDraftNew[K]) => setDraft((current) => ({ ...current, [key]: value })); const reset = () => { setEditing(null); setDraft({ ...emptyCertificateNew, displayOrder: String(certificates.length) }); };
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; setUploading(true); setError(""); try { patch("imageUrl", await uploadAboutImage(file)); } catch (caught) { setError(requestError(caught, "Image upload failed.")); } finally { setUploading(false); event.target.value = ""; } };
-  const submit = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(""); const payload = { title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr }, issuer: { ar: draft.issuerAr, en: draft.issuerEn || draft.issuerAr }, description: { ar: draft.descriptionAr, en: draft.descriptionEn || draft.descriptionAr }, issueDate: draft.issueDate || undefined, imageUrl: draft.imageUrl || undefined, displayOrder: Number(draft.displayOrder) }; try { editing ? await updateCertificate(editing, payload) : await createCertificate(payload); reset(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الشهادة." : "Could not save certificate.")); } finally { setBusy(false); } };
+  const [draft, setDraft] = useState<CertificateDraftNew>({ ...emptyCertificateNew });
+  const [editing, setEditing] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const image = useDeferredImage();
+  const patch = <K extends keyof CertificateDraftNew>(key: K, value: CertificateDraftNew[K]) => setDraft((current) => ({ ...current, [key]: value }));
+  const reset = () => { setEditing(null); setDraft({ ...emptyCertificateNew, displayOrder: String(certificates.length) }); image.reset(); };
+  const edit = (item: Certificate) => { setEditing(item.id); setDraft(certificateDraftNew(item)); image.reset(item.imageUrl || ""); };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      const imageUrl = image.file ? await uploadAboutImage(image.file) : draft.imageUrl || undefined;
+      if (image.file && imageUrl) {
+        patch("imageUrl", imageUrl);
+        image.reset(imageUrl);
+      }
+      const payload = { title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr }, issuer: { ar: draft.issuerAr, en: draft.issuerEn || draft.issuerAr }, description: { ar: draft.descriptionAr, en: draft.descriptionEn || draft.descriptionAr }, issueDate: draft.issueDate || undefined, imageUrl, displayOrder: Number(draft.displayOrder) };
+      editing ? await updateCertificate(editing, payload) : await createCertificate(payload);
+      reset();
+    } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ الشهادة." : "Could not save certificate.")); }
+    finally { setBusy(false); }
+  };
   const remove = async (id: number) => { if (!confirmDeleteAbout(lang, "certificate")) return; setBusy(true); try { await deleteCertificate(id); if (editing === id) reset(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
-  return <Panel title={lang === "ar" ? "شهادات التقدير" : "Certificates and recognition"} icon={FiFileText}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">{error ? <div className="xl:col-span-2"><AdminError message={error} /></div> : null}<div className="grid content-start gap-4 md:grid-cols-2">{certificates.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/10] w-full object-cover" /> : <ImagePlaceholder />}<div className="p-5"><small className="font-black text-amber-700">{item.issueDate?.slice(0, 4) || "—"} · {item.issuer[lang]}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.description[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setEditing(item.id); setDraft(certificateDraftNew(item)); }} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void remove(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={submit} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(editing)} lang={lang} nounAr="شهادة" nounEn="certificate" onCancel={reset} />{draft.imageUrl ? <LazyImage src={draft.imageUrl} alt="" className="h-48 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة الشهادة" : "Certificate image"} button={uploading ? (lang === "ar" ? "جارٍ الرفع..." : "Uploading...") : (lang === "ar" ? "رفع صورة" : "Upload image")} disabled={uploading} onChange={upload} /><div className="grid gap-3 sm:grid-cols-2"><Field label="عنوان الشهادة بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required /><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الجهة المانحة بالعربية" value={draft.issuerAr} onChange={(v) => patch("issuerAr", v)} required /><Field label="Issuer in English" value={draft.issuerEn} onChange={(v) => patch("issuerEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "تاريخ الشهادة" : "Issue date"} type="date" value={draft.issueDate} onChange={(v) => patch("issueDate", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={draft.displayOrder} onChange={(v) => patch("displayOrder", v)} required /></div><Textarea label="الوصف بالعربية" value={draft.descriptionAr} onChange={(v) => patch("descriptionAr", v)} /><Textarea label="Description in English" value={draft.descriptionEn} onChange={(v) => patch("descriptionEn", v)} /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy || uploading}>{lang === "ar" ? "حفظ الشهادة" : "Save certificate"}</Button></form></div></Panel>;
+  return <Panel title={lang === "ar" ? "شهادات التقدير" : "Certificates and recognition"} icon={FiFileText}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">{error ? <div className="xl:col-span-2"><AdminError message={error} /></div> : null}<div className="grid content-start gap-4 md:grid-cols-2">{certificates.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/10] w-full object-cover" /> : <ImagePlaceholder />}<div className="p-5"><small className="font-black text-amber-700">{item.issueDate?.slice(0, 4) || "—"} · {item.issuer[lang]}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.description[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => edit(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void remove(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={submit} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(editing)} lang={lang} nounAr="شهادة" nounEn="certificate" onCancel={reset} />{image.previewUrl ? <LazyImage src={image.previewUrl} alt="" className="h-48 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة الشهادة" : "Certificate image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={busy} onChange={image.choose} />{image.file ? <PendingImageNotice file={image.file} lang={lang} /> : null}<div className="grid gap-3 sm:grid-cols-2"><Field label="عنوان الشهادة بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required /><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الجهة المانحة بالعربية" value={draft.issuerAr} onChange={(v) => patch("issuerAr", v)} required /><Field label="Issuer in English" value={draft.issuerEn} onChange={(v) => patch("issuerEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "تاريخ الشهادة" : "Issue date"} type="date" value={draft.issueDate} onChange={(v) => patch("issueDate", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={draft.displayOrder} onChange={(v) => patch("displayOrder", v)} required /></div><Textarea label="الوصف بالعربية" value={draft.descriptionAr} onChange={(v) => patch("descriptionAr", v)} /><Textarea label="Description in English" value={draft.descriptionEn} onChange={(v) => patch("descriptionEn", v)} /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ الشهادة" : "Save certificate"}</Button></form></div></Panel>;
 }
 
 type CategoryDraftNew = { titleAr: string; titleEn: string; summaryAr: string; summaryEn: string; displayOrder: string };
@@ -1431,18 +1486,20 @@ function entryDraft(item?: WorkEntry): EntryDraft { return item ? { categoryId: 
 
 function PreviousWorkEditor({ categories }: { categories: WorkCategory[] }) {
   const { lang, createWorkCategory, updateWorkCategory, deleteWorkCategory, createWorkEntry, updateWorkEntry, deleteWorkEntry, uploadAboutImage } = useApp();
-  const [category, setCategory] = useState<CategoryDraftNew>({ ...emptyCategoryNew }); const [categoryId, setCategoryId] = useState<number | null>(null); const [entry, setEntry] = useState<EntryDraft>(() => ({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "" })); const [entryId, setEntryId] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [uploading, setUploading] = useState(false); const [error, setError] = useState("");
+  const [category, setCategory] = useState<CategoryDraftNew>({ ...emptyCategoryNew }); const [categoryId, setCategoryId] = useState<number | null>(null); const [entry, setEntry] = useState<EntryDraft>(() => ({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "" })); const [entryId, setEntryId] = useState<number | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const entryImage = useDeferredImage();
   const entries = categories.flatMap((item) => item.entries);
   useEffect(() => { if (!entry.categoryId && categories[0]) setEntry((current) => ({ ...current, categoryId: String(categories[0].id) })); }, [categories, entry.categoryId]);
-  const cPatch = <K extends keyof CategoryDraftNew>(key: K, value: CategoryDraftNew[K]) => setCategory((current) => ({ ...current, [key]: value })); const ePatch = <K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) => setEntry((current) => ({ ...current, [key]: value })); const resetCategory = () => { setCategoryId(null); setCategory({ ...emptyCategoryNew, displayOrder: String(categories.length) }); }; const resetEntry = () => { setEntryId(null); setEntry({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "", displayOrder: String(entries.length) }); };
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; setUploading(true); try { ePatch("imageUrl", await uploadAboutImage(file)); } catch (caught) { setError(requestError(caught, "Image upload failed.")); } finally { setUploading(false); event.target.value = ""; } };
+  const cPatch = <K extends keyof CategoryDraftNew>(key: K, value: CategoryDraftNew[K]) => setCategory((current) => ({ ...current, [key]: value })); const ePatch = <K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) => setEntry((current) => ({ ...current, [key]: value })); const resetCategory = () => { setCategoryId(null); setCategory({ ...emptyCategoryNew, displayOrder: String(categories.length) }); }; const resetEntry = () => { setEntryId(null); setEntry({ ...emptyEntry, categoryId: categories[0] ? String(categories[0].id) : "", displayOrder: String(entries.length) }); entryImage.reset(); };
+  const editEntry = (item: WorkEntry) => { setEntryId(item.id); setEntry(entryDraft(item)); entryImage.reset(item.imageUrl || ""); };
   const saveCategory = async (event: FormEvent) => { event.preventDefault(); setBusy(true); setError(""); const payload = { title: { ar: category.titleAr, en: category.titleEn || category.titleAr }, summary: { ar: category.summaryAr, en: category.summaryEn || category.summaryAr }, displayOrder: Number(category.displayOrder) }; try { categoryId ? await updateWorkCategory(categoryId, payload) : await createWorkCategory(payload); resetCategory(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ التصنيف." : "Could not save category.")); } finally { setBusy(false); } };
-  const saveEntry = async (event: FormEvent) => { event.preventDefault(); if (!entry.categoryId) { setError(lang === "ar" ? "أضف تصنيفًا واختره أولًا." : "Add and select a category first."); return; } setBusy(true); setError(""); const payload = { title: { ar: entry.titleAr, en: entry.titleEn || entry.titleAr }, client: { ar: entry.clientAr, en: entry.clientEn || entry.clientAr }, summary: { ar: entry.summaryAr, en: entry.summaryEn || entry.summaryAr }, details: { ar: entry.detailsAr, en: entry.detailsEn || entry.detailsAr }, projectYear: entry.projectYear ? Number(entry.projectYear) : undefined, location: { ar: entry.locationAr, en: entry.locationEn || entry.locationAr }, imageUrl: entry.imageUrl || undefined, displayOrder: Number(entry.displayOrder) }; try { entryId ? await updateWorkEntry(entryId, payload) : await createWorkEntry(Number(entry.categoryId), payload); resetEntry(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ المشروع." : "Could not save project.")); } finally { setBusy(false); } };
+  const saveEntry = async (event: FormEvent) => { event.preventDefault(); if (!entry.categoryId) { setError(lang === "ar" ? "أضف تصنيفًا واختره أولًا." : "Add and select a category first."); return; } setBusy(true); setError(""); try { const imageUrl = entryImage.file ? await uploadAboutImage(entryImage.file) : entry.imageUrl || undefined; if (entryImage.file && imageUrl) { ePatch("imageUrl", imageUrl); entryImage.reset(imageUrl); } const payload = { title: { ar: entry.titleAr, en: entry.titleEn || entry.titleAr }, client: { ar: entry.clientAr, en: entry.clientEn || entry.clientAr }, summary: { ar: entry.summaryAr, en: entry.summaryEn || entry.summaryAr }, details: { ar: entry.detailsAr, en: entry.detailsEn || entry.detailsAr }, projectYear: entry.projectYear ? Number(entry.projectYear) : undefined, location: { ar: entry.locationAr, en: entry.locationEn || entry.locationAr }, imageUrl, displayOrder: Number(entry.displayOrder) }; entryId ? await updateWorkEntry(entryId, payload) : await createWorkEntry(Number(entry.categoryId), payload); resetEntry(); } catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حفظ المشروع." : "Could not save project.")); } finally { setBusy(false); } };
   const removeCategory = async (id: number) => { if (!confirmDeleteAbout(lang, "category")) return; setBusy(true); try { await deleteWorkCategory(id); if (categoryId === id) resetCategory(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } }; const removeEntry = async (id: number) => { if (!confirmDeleteAbout(lang, "entry")) return; setBusy(true); try { await deleteWorkEntry(id); if (entryId === id) resetEntry(); } catch (caught) { setError(requestError(caught, "Could not delete.")); } finally { setBusy(false); } };
-  return <div className="grid gap-6">{error ? <AdminError message={error} /> : null}<Panel title={lang === "ar" ? "تصنيفات سابقة الأعمال" : "Previous-work categories"} icon={FiFolderPlus}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"><div className="grid content-start gap-3 md:grid-cols-2">{categories.map((item) => <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><strong className="text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><small className="mt-3 block font-black text-amber-700">{item.entries.length} {lang === "ar" ? "مشروع" : "projects"}</small></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black">{item.displayOrder}</span></div><div className="mt-4 flex gap-2"><button type="button" onClick={() => { setCategoryId(item.id); setCategory(categoryDraftNew(item)); }} className="h-10 flex-1 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeCategory(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div><form onSubmit={saveCategory} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(categoryId)} lang={lang} nounAr="تصنيف" nounEn="category" onCancel={resetCategory} /><Field label="اسم التصنيف بالعربية" value={category.titleAr} onChange={(v) => cPatch("titleAr", v)} required /><Field label="Category in English" value={category.titleEn} onChange={(v) => cPatch("titleEn", v)} required /><Textarea label="ملخص التصنيف بالعربية" value={category.summaryAr} onChange={(v) => cPatch("summaryAr", v)} /><Textarea label="Category summary in English" value={category.summaryEn} onChange={(v) => cPatch("summaryEn", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={category.displayOrder} onChange={(v) => cPatch("displayOrder", v)} required /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ التصنيف" : "Save category"}</Button></form></div></Panel><Panel title={lang === "ar" ? "المشروعات والتفاصيل" : "Projects and details"} icon={FiBriefcase}><div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_500px]"><div className="grid content-start gap-4 md:grid-cols-2">{entries.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/8] w-full object-cover" /> : null}<div className="p-5"><small className="font-black text-amber-700">{item.client[lang]} {item.projectYear ? `· ${item.projectYear}` : ""}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setEntryId(item.id); setEntry(entryDraft(item)); }} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeEntry(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={saveEntry} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(entryId)} lang={lang} nounAr="مشروع" nounEn="project" onCancel={resetEntry} /><Select label={lang === "ar" ? "التصنيف" : "Category"} value={entry.categoryId} onChange={(v) => ePatch("categoryId", v)}>{!categories.length ? <option value="">{lang === "ar" ? "أضف تصنيفًا أولًا" : "Add a category first"}</option> : null}{categories.map((item) => <option key={item.id} value={item.id}>{item.title[lang]}</option>)}</Select>{entry.imageUrl ? <LazyImage src={entry.imageUrl} alt="" className="h-44 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة المشروع" : "Project image"} button={uploading ? (lang === "ar" ? "جارٍ الرفع..." : "Uploading...") : (lang === "ar" ? "رفع صورة" : "Upload image")} disabled={uploading} onChange={upload} /><div className="grid gap-3 sm:grid-cols-2"><Field label="اسم المشروع بالعربية" value={entry.titleAr} onChange={(v) => ePatch("titleAr", v)} required /><Field label="Project in English" value={entry.titleEn} onChange={(v) => ePatch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="العميل بالعربية" value={entry.clientAr} onChange={(v) => ePatch("clientAr", v)} required /><Field label="Client in English" value={entry.clientEn} onChange={(v) => ePatch("clientEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الموقع بالعربية" value={entry.locationAr} onChange={(v) => ePatch("locationAr", v)} required /><Field label="Location in English" value={entry.locationEn} onChange={(v) => ePatch("locationEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "سنة المشروع" : "Project year"} type="number" value={entry.projectYear} onChange={(v) => ePatch("projectYear", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={entry.displayOrder} onChange={(v) => ePatch("displayOrder", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="الملخص بالعربية" value={entry.summaryAr} onChange={(v) => ePatch("summaryAr", v)} /><Textarea label="Summary in English" value={entry.summaryEn} onChange={(v) => ePatch("summaryEn", v)} /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="التفاصيل بالعربية" value={entry.detailsAr} onChange={(v) => ePatch("detailsAr", v)} /><Textarea label="Details in English" value={entry.detailsEn} onChange={(v) => ePatch("detailsEn", v)} /></div><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy || uploading}>{lang === "ar" ? "حفظ المشروع" : "Save project"}</Button></form></div></Panel></div>;
+  return <div className="grid gap-6">{error ? <AdminError message={error} /> : null}<Panel title={lang === "ar" ? "تصنيفات سابقة الأعمال" : "Previous-work categories"} icon={FiFolderPlus}><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"><div className="grid content-start gap-3 md:grid-cols-2">{categories.map((item) => <article key={item.id} className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><strong className="text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><small className="mt-3 block font-black text-amber-700">{item.entries.length} {lang === "ar" ? "مشروع" : "projects"}</small></div><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black">{item.displayOrder}</span></div><div className="mt-4 flex gap-2"><button type="button" onClick={() => { setCategoryId(item.id); setCategory(categoryDraftNew(item)); }} className="h-10 flex-1 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeCategory(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div><form onSubmit={saveCategory} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(categoryId)} lang={lang} nounAr="تصنيف" nounEn="category" onCancel={resetCategory} /><Field label="اسم التصنيف بالعربية" value={category.titleAr} onChange={(v) => cPatch("titleAr", v)} required /><Field label="Category in English" value={category.titleEn} onChange={(v) => cPatch("titleEn", v)} required /><Textarea label="ملخص التصنيف بالعربية" value={category.summaryAr} onChange={(v) => cPatch("summaryAr", v)} /><Textarea label="Category summary in English" value={category.summaryEn} onChange={(v) => cPatch("summaryEn", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={category.displayOrder} onChange={(v) => cPatch("displayOrder", v)} required /><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ التصنيف" : "Save category"}</Button></form></div></Panel><Panel title={lang === "ar" ? "المشروعات والتفاصيل" : "Projects and details"} icon={FiBriefcase}><div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_500px]"><div className="grid content-start gap-4 md:grid-cols-2">{entries.map((item) => <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">{item.imageUrl ? <LazyImage src={item.imageUrl} alt="" className="aspect-[16/8] w-full object-cover" /> : null}<div className="p-5"><small className="font-black text-amber-700">{item.client[lang]} {item.projectYear ? `· ${item.projectYear}` : ""}</small><strong className="mt-2 block text-lg font-black">{item.title[lang]}</strong><p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-slate-500">{item.summary[lang]}</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => editEntry(item)} className="h-10 rounded-xl border text-xs font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" onClick={() => void removeEntry(item.id)} className="grid h-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></div></article>)}</div><form onSubmit={saveEntry} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5"><EditorTitle editing={Boolean(entryId)} lang={lang} nounAr="مشروع" nounEn="project" onCancel={resetEntry} /><Select label={lang === "ar" ? "التصنيف" : "Category"} value={entry.categoryId} onChange={(v) => ePatch("categoryId", v)}>{!categories.length ? <option value="">{lang === "ar" ? "أضف تصنيفًا أولًا" : "Add a category first"}</option> : null}{categories.map((item) => <option key={item.id} value={item.id}>{item.title[lang]}</option>)}</Select>{entryImage.previewUrl ? <LazyImage src={entryImage.previewUrl} alt="" className="h-44 w-full rounded-2xl object-cover" /> : <ImagePlaceholder />}<FileInput label={lang === "ar" ? "صورة المشروع" : "Project image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} disabled={busy} onChange={entryImage.choose} />{entryImage.file ? <PendingImageNotice file={entryImage.file} lang={lang} /> : null}<div className="grid gap-3 sm:grid-cols-2"><Field label="اسم المشروع بالعربية" value={entry.titleAr} onChange={(v) => ePatch("titleAr", v)} required /><Field label="Project in English" value={entry.titleEn} onChange={(v) => ePatch("titleEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="العميل بالعربية" value={entry.clientAr} onChange={(v) => ePatch("clientAr", v)} required /><Field label="Client in English" value={entry.clientEn} onChange={(v) => ePatch("clientEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label="الموقع بالعربية" value={entry.locationAr} onChange={(v) => ePatch("locationAr", v)} required /><Field label="Location in English" value={entry.locationEn} onChange={(v) => ePatch("locationEn", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Field label={lang === "ar" ? "سنة المشروع" : "Project year"} type="number" value={entry.projectYear} onChange={(v) => ePatch("projectYear", v)} /><Field label={lang === "ar" ? "ترتيب الظهور" : "Display order"} type="number" value={entry.displayOrder} onChange={(v) => ePatch("displayOrder", v)} required /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="الملخص بالعربية" value={entry.summaryAr} onChange={(v) => ePatch("summaryAr", v)} /><Textarea label="Summary in English" value={entry.summaryEn} onChange={(v) => ePatch("summaryEn", v)} /></div><div className="grid gap-3 sm:grid-cols-2"><Textarea label="التفاصيل بالعربية" value={entry.detailsAr} onChange={(v) => ePatch("detailsAr", v)} /><Textarea label="Details in English" value={entry.detailsEn} onChange={(v) => ePatch("detailsEn", v)} /></div><Button type="submit" icon={busy ? FiLoader : FiSave} disabled={busy}>{lang === "ar" ? "حفظ المشروع" : "Save project"}</Button></form></div></Panel></div>;
 }
 
 function EditorTitle({ editing, lang, nounAr, nounEn, onCancel }: { editing: boolean; lang: "ar" | "en"; nounAr: string; nounEn: string; onCancel: () => void }) { return <div className="flex items-center justify-between gap-3"><h3 className="text-xl font-black">{lang === "ar" ? `${editing ? "تعديل" : "إضافة"} ${nounAr}` : `${editing ? "Edit" : "Add"} ${nounEn}`}</h3>{editing ? <button type="button" onClick={onCancel} className="rounded-full border bg-white px-4 py-2 text-xs font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button> : null}</div>; }
+function PendingImageNotice({ file, lang }: { file: File; lang: "ar" | "en" }) { return <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">{lang === "ar" ? `تم اختيار ${file.name} — لن تُرفع إلا عند الحفظ.` : `${file.name} selected — it will upload only when you save.`}</p>; }
 function ImagePlaceholder() { return <div className="grid h-36 place-items-center rounded-2xl bg-gradient-to-br from-emerald-950 to-emerald-800 text-4xl text-amber-300"><FiUploadCloud /></div>; }
 function AdminError({ message }: { message: string }) { return <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700"><FiAlertCircle />{message}</div>; }
 function confirmDeleteAbout(lang: "ar" | "en", type: string) { return window.confirm(lang === "ar" ? "هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه الخطوة." : `Delete this ${type}? This cannot be undone.`); }
