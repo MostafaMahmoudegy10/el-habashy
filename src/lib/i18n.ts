@@ -3,7 +3,7 @@ import type { Language, ListingCategory, ListingStatus } from "../types";
 export const copy = {
   ar: {
     brand: "الحبشي",
-    brandSub: "شركة اتحاد الخبراء المثمنين",
+    brandSub: "الخبراء المثمنين للخبرة والتثمين",
     home: "الرئيسية",
     listings: "العروض",
     dashboard: "لوحة التحكم",
@@ -168,7 +168,7 @@ export const copy = {
   },
   en: {
     brand: "El Habashy",
-    brandSub: "Union of Valuation Experts",
+    brandSub: "Valuation Experts for Expertise & Appraisal",
     home: "Home",
     listings: "Listings",
     dashboard: "Dashboard",
