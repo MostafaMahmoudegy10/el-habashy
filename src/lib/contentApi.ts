@@ -15,6 +15,8 @@ import type {
   Certificate,
   WorkCategory,
   WorkEntry,
+  ServiceArticle,
+  ServiceKind,
 } from "../types";
 
 export type SectorResponse = {
@@ -66,6 +68,35 @@ export type UpsertAboutDepartmentBody = Omit<AboutDepartment, "id" | "updatedAt"
 export type UpsertCertificateBody = Omit<Certificate, "id" | "updatedAt">;
 export type UpsertWorkCategoryBody = Omit<WorkCategory, "id" | "entries" | "updatedAt">;
 export type UpsertWorkEntryBody = Omit<WorkEntry, "id" | "categoryId" | "updatedAt">;
+
+export type ServiceArticleResponse = ServiceArticle & {
+  slug: string;
+  displayOrder: number;
+  updatedAt: string;
+};
+
+export type UpsertServiceArticleBody = {
+  kind: ServiceKind;
+  title: LocalizedText;
+  summary: LocalizedText;
+  content: LocalizedText;
+  image: string;
+  gallery: string[];
+  featured: boolean;
+  displayOrder: number;
+  seoTitle?: LocalizedText;
+  seoDescription?: LocalizedText;
+  seoKeywords?: LocalizedText;
+};
+
+export type WorkbookPreviewResponse = {
+  sheets: Array<{ index: number; name: string; physicalRows: number }>;
+  selectedSheetIndex: number;
+  headerRow: number;
+  columns: Array<{ key: string; header: string; index: number }>;
+  rows: Array<{ rowNumber: number; values: Record<string, string> }>;
+  totalRows: number;
+};
 
 export type UpsertListingBody = {
   slug: string;
@@ -123,6 +154,8 @@ export const publicContentApi = {
     ),
   settings: () => apiRequest<AppSettingsResponse>("/api/v1/public/settings"),
   about: () => apiRequest<AboutContent>("/api/v1/public/about"),
+  services: (kind?: ServiceKind) =>
+    apiRequest<ServiceArticleResponse[]>(`/api/v1/public/services${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`),
 };
 
 export type AuthorizedRequest = <T>(
@@ -210,5 +243,32 @@ export const adminContentApi = {
     const multipart = new FormData();
     multipart.append("file", file, file.name);
     return request<AboutImageResponse>("/api/v1/admin/about/media", { method: "POST", body: multipart });
+  },
+  services: (request: AuthorizedRequest, kind?: ServiceKind) =>
+    request<ServiceArticleResponse[]>(`/api/v1/admin/services${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`),
+  createService: (request: AuthorizedRequest, body: UpsertServiceArticleBody) =>
+    request<ServiceArticleResponse>("/api/v1/admin/services", { method: "POST", body }),
+  updateService: (request: AuthorizedRequest, id: number, body: UpsertServiceArticleBody) =>
+    request<ServiceArticleResponse>(`/api/v1/admin/services/${id}`, { method: "PUT", body }),
+  deleteService: (request: AuthorizedRequest, id: number) =>
+    request<void>(`/api/v1/admin/services/${id}`, { method: "DELETE" }),
+  uploadServiceImage: (request: AuthorizedRequest, file: File) => {
+    const multipart = new FormData();
+    multipart.append("file", file, file.name);
+    return request<AboutImageResponse>("/api/v1/admin/services/media", { method: "POST", body: multipart });
+  },
+  previewListingWorkbook: (
+    request: AuthorizedRequest,
+    file: File,
+    sheetIndex = 0,
+    headerRow = 1,
+  ) => {
+    const multipart = new FormData();
+    multipart.append("file", file, file.name);
+    const query = new URLSearchParams({ sheetIndex: String(sheetIndex), headerRow: String(headerRow) });
+    return request<WorkbookPreviewResponse>(`/api/v1/admin/listing-imports/preview?${query}`, {
+      method: "POST",
+      body: multipart,
+    });
   },
 };

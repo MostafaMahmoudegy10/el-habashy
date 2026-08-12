@@ -11,6 +11,7 @@ export type DashboardView =
   | "listings"
   | "sectors"
   | "create"
+  | "import"
   | "edit"
   | "about-content"
   | "about-profile"
@@ -252,6 +253,7 @@ export type ServiceKind = "arbitration" | "valuation" | "consulting";
 
 export type ServiceArticle = {
   id: number;
+  slug?: string;
   kind: ServiceKind;
   title: LocalizedText;
   summary: LocalizedText;
@@ -259,7 +261,12 @@ export type ServiceArticle = {
   image: string;
   gallery: string[];
   featured: boolean;
+  displayOrder?: number;
+  seoTitle?: LocalizedText;
+  seoDescription?: LocalizedText;
+  seoKeywords?: LocalizedText;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type ServiceDraft = {
@@ -273,4 +280,11 @@ export type ServiceDraft = {
   image: string;
   gallery: string[];
   featured: boolean;
+  displayOrder: number;
+  seoTitleAr: string;
+  seoTitleEn: string;
+  seoDescriptionAr: string;
+  seoDescriptionEn: string;
+  seoKeywordsAr: string;
+  seoKeywordsEn: string;
 };

@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext";
 import { categoryIcon } from "../lib/icons";
 import type { AboutSection, Page } from "../types";
 import { useAuth } from "../context/AuthContext";
+import { GlobalSearch } from "./GlobalSearch";
 
 export function Header() {
   const {
@@ -150,6 +151,7 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
+          <GlobalSearch />
           <div className="hidden items-center gap-2 xl:flex">
             <AuthButtons />
           </div>

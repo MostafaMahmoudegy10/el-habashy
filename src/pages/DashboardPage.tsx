@@ -12,6 +12,7 @@ import {
   FiEdit3,
   FiEye,
   FiFileText,
+  FiFile,
   FiFolderPlus,
   FiGrid,
   FiLayers,
@@ -24,6 +25,7 @@ import {
   FiTrash2,
   FiUploadCloud,
   FiUsers,
+  FiX,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa6";
 import { statusLabel } from "../lib/i18n";
@@ -34,7 +36,8 @@ import { LazyImage } from "../components/LazyImage";
 import { RichTextEditor } from "../components/RichTextEditor";
 import type { AboutContent, AboutDepartment, AboutPerson, AboutProfile, AppSettings, Certificate, DashboardView, Listing, ListingCategory, ListingDraft, ListingMedia, ListingMediaRole, ListingStatus, Sector, WorkCategory, WorkEntry, ServiceArticle, ServiceDraft, ServiceKind } from "../types";
 import { useAuth } from "../context/AuthContext";
-import type { AuthUser, ListingSubmissionMedia, PageResponse, UserRole } from "../lib/elHabashyApi";
+import { elHabashyApi } from "../lib/elHabashyApi";
+import type { AuthUser, ListingSubmissionMedia, PageResponse, UserRole, WorkbookPreviewResponse } from "../lib/elHabashyApi";
 import { ApiError } from "../lib/api";
 import { mediaContentType, MediaProcessingFailedError } from "../lib/listingMediaApi";
 
@@ -96,6 +99,7 @@ export function DashboardPage() {
     addService,
     updateService,
     deleteService,
+    uploadServiceImage,
   } = useApp();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Listing | null>(null);
@@ -152,6 +156,7 @@ export function DashboardPage() {
     { id: "listings", label: t.manageListings, icon: FiLayers },
     { id: "sectors", label: t.manageSectors, icon: FiGrid },
     { id: "create", label: t.createListing, icon: FiPlus },
+    { id: "import", label: lang === "ar" ? "استيراد من Excel" : "Import from Excel", icon: FiFile },
     { id: "users", label: t.users, icon: FiUsers },
     { id: "settings", label: t.settings, icon: FiSettings },
   ];
@@ -357,6 +362,8 @@ export function DashboardPage() {
           />
         ) : null}
 
+        {dashboardView === "import" ? <ListingImportWizard /> : null}
+
         {dashboardView === "edit" ? (
           <ListingForm
             title={t.editListing}
@@ -379,7 +386,7 @@ export function DashboardPage() {
         ) : null}
 
         {["arbitration-content", "valuation-content", "consulting-content", "services-content"].includes(dashboardView) ? (
-          <ServicesContentPanel kind={dashboardView === "valuation-content" ? "valuation" : dashboardView === "consulting-content" ? "consulting" : "arbitration"} services={services} onAdd={addService} onUpdate={updateService} onDelete={deleteService} />
+          <ServicesContentPanel kind={dashboardView === "valuation-content" ? "valuation" : dashboardView === "consulting-content" ? "consulting" : "arbitration"} services={services} onAdd={addService} onUpdate={updateService} onDelete={deleteService} onUploadImage={uploadServiceImage} />
         ) : null}
 
         {dashboardView === "users" ? (
@@ -749,12 +756,14 @@ function ListingForm({
         },
       });
       patchPending(item.key, { status: media.status, progress: media.progress, media, mediaId: media.id });
+      return true;
     } catch (caught) {
-      if (caught instanceof Error && caught.name === "AbortError") return;
+      if (caught instanceof Error && caught.name === "AbortError") return false;
       patchPending(item.key, {
         status: caught instanceof MediaProcessingFailedError ? "failed" : "error",
         error: requestError(caught, "تعذر متابعة رفع الملف."),
       });
+      return false;
     }
   };
 
@@ -792,7 +801,9 @@ function ListingForm({
       }
 
       if (listing) {
-        for (const item of selected) await uploadOne(persisted.id, item);
+        const results = [];
+        for (const item of selected) results.push(await uploadOne(persisted.id, item));
+        if (results.every(Boolean)) onFinished();
         return;
       }
 
@@ -810,7 +821,8 @@ function ListingForm({
         const [serverMedia] = unmatchedServerMedia.splice(index, 1);
         return [watchOne(persisted.id, item, serverMedia)];
       });
-      await Promise.all(monitoring);
+      const results = await Promise.all(monitoring);
+      if (results.length === selected.length && results.every(Boolean)) onFinished();
     } catch (caught) {
       setError(requestError(caught, "تعذر حفظ الإعلان."));
     } finally {
@@ -1237,6 +1249,330 @@ function ListingForm({
   );
 }
 
+type ImportField =
+  | "titleAr" | "titleEn" | "category" | "status"
+  | "summaryAr" | "summaryEn" | "descriptionAr" | "descriptionEn"
+  | "cityAr" | "cityEn" | "locationAr" | "locationEn"
+  | "priceLabelAr" | "priceLabelEn" | "measureLabel"
+  | "publishDate" | "expireDate" | "auctionDate" | "auctionTime"
+  | "beneficiaryAr" | "beneficiaryEn" | "venueAr" | "venueEn"
+  | "announcementSourceAr" | "announcementSourceEn" | "notesAr" | "notesEn"
+  | "mapUrl" | "whatsappPhone" | "seoTitleAr" | "seoTitleEn"
+  | "seoDescriptionAr" | "seoDescriptionEn" | "seoKeywordsAr" | "seoKeywordsEn"
+  | "seoSlug" | "featured";
+
+type ImportFieldDefinition = {
+  key: ImportField;
+  ar: string;
+  en: string;
+  aliases: string[];
+  primary?: boolean;
+};
+
+const importFieldDefinitions: ImportFieldDefinition[] = [
+  { key: "titleAr", ar: "العنوان بالعربية", en: "Arabic title", aliases: ["العنوان العربي", "عنوان عربي", "title ar", "arabic title"], primary: true },
+  { key: "titleEn", ar: "العنوان بالإنجليزية", en: "English title", aliases: ["العنوان الانجليزي", "عنوان انجليزي", "title en", "english title", "title"], primary: true },
+  { key: "category", ar: "القطاع", en: "Category", aliases: ["القطاع", "القسم", "category", "sector"], primary: true },
+  { key: "status", ar: "الحالة", en: "Status", aliases: ["الحالة", "status"], primary: true },
+  { key: "summaryAr", ar: "الملخص بالعربية", en: "Arabic summary", aliases: ["الملخص العربي", "ملخص عربي", "summary ar", "arabic summary"], primary: true },
+  { key: "summaryEn", ar: "الملخص بالإنجليزية", en: "English summary", aliases: ["الملخص الانجليزي", "ملخص انجليزي", "summary en", "english summary", "summary"], primary: true },
+  { key: "descriptionAr", ar: "الوصف بالعربية", en: "Arabic description", aliases: ["الوصف العربي", "وصف عربي", "description ar", "arabic description"], primary: true },
+  { key: "descriptionEn", ar: "الوصف بالإنجليزية", en: "English description", aliases: ["الوصف الانجليزي", "وصف انجليزي", "description en", "english description", "description"], primary: true },
+  { key: "cityAr", ar: "المدينة بالعربية", en: "Arabic city", aliases: ["المدينة العربي", "مدينة عربي", "city ar", "arabic city"], primary: true },
+  { key: "cityEn", ar: "المدينة بالإنجليزية", en: "English city", aliases: ["المدينة الانجليزي", "مدينة انجليزي", "city en", "english city", "city"], primary: true },
+  { key: "locationAr", ar: "الموقع بالعربية", en: "Arabic location", aliases: ["الموقع العربي", "مكان المعاينة عربي", "location ar", "arabic location"], primary: true },
+  { key: "locationEn", ar: "الموقع بالإنجليزية", en: "English location", aliases: ["الموقع الانجليزي", "مكان المعاينة انجليزي", "location en", "english location", "location"], primary: true },
+  { key: "priceLabelAr", ar: "السعر بالعربية", en: "Arabic price label", aliases: ["السعر العربي", "التسعير العربي", "price ar", "arabic price"], primary: true },
+  { key: "priceLabelEn", ar: "السعر بالإنجليزية", en: "English price label", aliases: ["السعر الانجليزي", "التسعير الانجليزي", "price en", "english price", "price"], primary: true },
+  { key: "measureLabel", ar: "المساحة أو الكمية", en: "Measure / quantity", aliases: ["المساحة", "الكمية", "المساحة او الكمية", "measure", "quantity", "area"], primary: true },
+  { key: "publishDate", ar: "تاريخ النشر", en: "Publish date", aliases: ["تاريخ النشر", "publish date"] },
+  { key: "expireDate", ar: "تاريخ الانتهاء", en: "Expire date", aliases: ["تاريخ الانتهاء", "expire date", "expiry date"] },
+  { key: "auctionDate", ar: "تاريخ المزاد", en: "Auction date", aliases: ["تاريخ المزاد", "auction date"] },
+  { key: "auctionTime", ar: "وقت المزاد", en: "Auction time", aliases: ["وقت المزاد", "auction time"] },
+  { key: "beneficiaryAr", ar: "الجهة المستفيدة بالعربية", en: "Arabic beneficiary", aliases: ["الجهة المستفيدة عربي", "beneficiary ar"] },
+  { key: "beneficiaryEn", ar: "الجهة المستفيدة بالإنجليزية", en: "English beneficiary", aliases: ["الجهة المستفيدة انجليزي", "beneficiary en", "beneficiary"] },
+  { key: "venueAr", ar: "مكان المزاد بالعربية", en: "Arabic venue", aliases: ["مكان المزاد عربي", "venue ar"] },
+  { key: "venueEn", ar: "مكان المزاد بالإنجليزية", en: "English venue", aliases: ["مكان المزاد انجليزي", "venue en", "venue"] },
+  { key: "announcementSourceAr", ar: "مصدر الإعلان بالعربية", en: "Arabic source", aliases: ["مصدر الاعلان عربي", "source ar"] },
+  { key: "announcementSourceEn", ar: "مصدر الإعلان بالإنجليزية", en: "English source", aliases: ["مصدر الاعلان انجليزي", "source en", "announcement source"] },
+  { key: "notesAr", ar: "الملاحظات بالعربية", en: "Arabic notes", aliases: ["الملاحظات العربي", "ملاحظات عربي", "notes ar"] },
+  { key: "notesEn", ar: "الملاحظات بالإنجليزية", en: "English notes", aliases: ["الملاحظات الانجليزي", "ملاحظات انجليزي", "notes en", "notes"] },
+  { key: "mapUrl", ar: "رابط الخريطة", en: "Map URL", aliases: ["رابط الخريطة", "map url", "map"] },
+  { key: "whatsappPhone", ar: "رقم واتساب", en: "WhatsApp phone", aliases: ["رقم واتساب", "واتساب", "whatsapp", "phone"] },
+  { key: "seoTitleAr", ar: "عنوان SEO بالعربية", en: "Arabic SEO title", aliases: ["عنوان seo عربي", "seo title ar"] },
+  { key: "seoTitleEn", ar: "عنوان SEO بالإنجليزية", en: "English SEO title", aliases: ["عنوان seo انجليزي", "seo title en", "seo title"] },
+  { key: "seoDescriptionAr", ar: "وصف SEO بالعربية", en: "Arabic SEO description", aliases: ["وصف seo عربي", "seo description ar"] },
+  { key: "seoDescriptionEn", ar: "وصف SEO بالإنجليزية", en: "English SEO description", aliases: ["وصف seo انجليزي", "seo description en", "seo description"] },
+  { key: "seoKeywordsAr", ar: "كلمات SEO بالعربية", en: "Arabic SEO keywords", aliases: ["كلمات seo عربي", "seo keywords ar"] },
+  { key: "seoKeywordsEn", ar: "كلمات SEO بالإنجليزية", en: "English SEO keywords", aliases: ["كلمات seo انجليزي", "seo keywords en", "seo keywords"] },
+  { key: "seoSlug", ar: "رابط الإعلان", en: "SEO slug", aliases: ["الرابط", "slug", "seo slug"] },
+  { key: "featured", ar: "إعلان مميز", en: "Featured", aliases: ["مميز", "featured"] },
+];
+
+type ImportQueueItem = {
+  rowNumber: number;
+  draft: ListingDraft;
+  missing: string[];
+  published: boolean;
+};
+
+function normalizedHeader(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
+    .trim();
+}
+
+function autoMapColumns(columns: WorkbookPreviewResponse["columns"]) {
+  const mapping = {} as Partial<Record<ImportField, string>>;
+  const used = new Set<string>();
+  for (const definition of importFieldDefinitions) {
+    const aliases = definition.aliases.map(normalizedHeader);
+    const exact = columns.find((column) => !used.has(column.key) && aliases.includes(normalizedHeader(column.header)));
+    const partial = exact ?? columns.find((column) => {
+      const header = normalizedHeader(column.header);
+      return !used.has(column.key) && aliases.some((alias) => alias.length > 3 && (header.includes(alias) || alias.includes(header)));
+    });
+    if (partial) {
+      mapping[definition.key] = partial.key;
+      used.add(partial.key);
+    }
+  }
+  return mapping;
+}
+
+function importedCategory(value: string, sectors: Sector[]): ListingCategory {
+  const normalized = normalizedHeader(value);
+  const direct = (["real-estate", "movables", "cars", "antiques", "scrap", "other"] as ListingCategory[])
+    .find((category) => category === value.trim().toLowerCase());
+  if (direct) return direct;
+  const sector = sectors.find((item) => [item.title.ar, item.title.en].some((title) => normalizedHeader(title) === normalized));
+  if (sector) return sector.id;
+  if (/عقار|real estate|property/.test(normalized)) return "real-estate";
+  if (/منقول|معدات|movable|equipment/.test(normalized)) return "movables";
+  if (/سيار|مركب|car|vehicle/.test(normalized)) return "cars";
+  if (/تحف|انتيك|مقتنيات|antique|collectible/.test(normalized)) return "antiques";
+  if (/خرده|سكراب|scrap/.test(normalized)) return "scrap";
+  return "other";
+}
+
+function importedStatus(value: string): ListingStatus {
+  const normalized = normalizedHeader(value);
+  if (/غير نشط|inactive|hidden/.test(normalized)) return "inactive";
+  if (/مغلق|منتهي|closed|ended/.test(normalized)) return "closed";
+  if (/قريبا|قريب|coming/.test(normalized)) return "coming-soon";
+  return "active";
+}
+
+function importedDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (!match) return "";
+  const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+  return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+}
+
+function draftFromImportedRow(
+  row: WorkbookPreviewResponse["rows"][number],
+  mapping: Partial<Record<ImportField, string>>,
+  sectors: Sector[],
+) {
+  const draft = listingToDraft();
+  const target = draft as unknown as Record<string, unknown>;
+  for (const definition of importFieldDefinitions) {
+    const column = mapping[definition.key];
+    const value = column ? row.values[column]?.trim() ?? "" : "";
+    if (!value) continue;
+    if (definition.key === "category") target.category = importedCategory(value, sectors);
+    else if (definition.key === "status") target.status = importedStatus(value);
+    else if (["publishDate", "expireDate", "auctionDate"].includes(definition.key)) target[definition.key] = importedDate(value);
+    else if (definition.key === "featured") target.featured = /^(1|true|yes|نعم|مميز)$/i.test(value);
+    else target[definition.key] = value;
+  }
+  return draft;
+}
+
+function importedDraftMissing(draft: ListingDraft, lang: "ar" | "en") {
+  const fields: Array<[string, string, string]> = [
+    [draft.titleAr, "العنوان العربي", "Arabic title"],
+    [draft.titleEn, "العنوان الإنجليزي", "English title"],
+    [draft.summaryAr, "الملخص العربي", "Arabic summary"],
+    [draft.summaryEn, "الملخص الإنجليزي", "English summary"],
+    [draft.descriptionAr, "الوصف العربي", "Arabic description"],
+    [draft.descriptionEn, "الوصف الإنجليزي", "English description"],
+    [draft.cityAr, "المدينة بالعربية", "Arabic city"],
+    [draft.cityEn, "المدينة بالإنجليزية", "English city"],
+    [draft.locationAr, "الموقع بالعربية", "Arabic location"],
+    [draft.locationEn, "الموقع بالإنجليزية", "English location"],
+    [draft.priceLabelAr, "السعر بالعربية", "Arabic price"],
+    [draft.priceLabelEn, "السعر بالإنجليزية", "English price"],
+    [draft.measureLabel, "المساحة أو الكمية", "Measure / quantity"],
+    [draft.seoTitleAr || draft.seoTitleEn, "عنوان SEO", "SEO title"],
+    [draft.seoDescriptionAr || draft.seoDescriptionEn, "وصف SEO", "SEO description"],
+    [draft.seoKeywordsAr || draft.seoKeywordsEn, "كلمات SEO", "SEO keywords"],
+  ];
+  return [
+    ...(fields.filter(([value]) => !value.trim()).map(([, ar, en]) => lang === "ar" ? ar : en)),
+    lang === "ar" ? "الصورة الرئيسية" : "Main thumbnail",
+  ];
+}
+
+function ListingImportWizard() {
+  const { lang, sectors, addListing } = useApp();
+  const { authorizedRequest } = useAuth();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<WorkbookPreviewResponse | null>(null);
+  const [mapping, setMapping] = useState<Partial<Record<ImportField, string>>>({});
+  const [headerRow, setHeaderRow] = useState(1);
+  const [items, setItems] = useState<ImportQueueItem[]>([]);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadWorkbook = async (selectedFile: File, sheetIndex = 0, nextHeaderRow = headerRow) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await elHabashyApi.admin.content.previewListingWorkbook(
+        authorizedRequest,
+        selectedFile,
+        sheetIndex,
+        nextHeaderRow,
+      );
+      setPreview(response);
+      setMapping(autoMapColumns(response.columns));
+      setItems([]);
+      setActiveIndex(null);
+    } catch (caught) {
+      setError(requestError(caught, lang === "ar" ? "تعذر قراءة ملف Excel." : "Could not read the Excel workbook."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const chooseWorkbook = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    setFile(selected);
+    setHeaderRow(1);
+    void loadWorkbook(selected, 0, 1);
+    event.target.value = "";
+  };
+
+  const prepareQueue = () => {
+    if (!preview) return;
+    if (!mapping.titleAr && !mapping.titleEn) {
+      setError(lang === "ar" ? "اربط عمود عنوان واحد على الأقل قبل المتابعة." : "Map at least one title column before continuing.");
+      return;
+    }
+    const nextItems = preview.rows.map((row) => {
+      const draft = draftFromImportedRow(row, mapping, sectors);
+      return { rowNumber: row.rowNumber, draft, missing: importedDraftMissing(draft, lang), published: false };
+    });
+    setItems(nextItems);
+    setActiveIndex(nextItems.length ? 0 : null);
+    setError("");
+  };
+
+  const finishCurrent = () => {
+    if (activeIndex === null) return;
+    setItems((current) => current.map((item, index) => index === activeIndex ? { ...item, published: true, missing: [] } : item));
+    const nextIndex = items.findIndex((item, index) => index > activeIndex && !item.published);
+    setActiveIndex(nextIndex >= 0 ? nextIndex : null);
+  };
+
+  const publishedCount = items.filter((item) => item.published).length;
+  const active = activeIndex === null ? null : items[activeIndex];
+
+  return (
+    <div className="grid gap-6">
+      <Panel title={lang === "ar" ? "استيراد الإعلانات من Excel" : "Import listings from Excel"} icon={FiFile}>
+        <div className="grid gap-5">
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+            <h3 className="text-lg font-black text-amber-950">{lang === "ar" ? "العملية ماشية خطوة بخطوة" : "A guided import process"}</h3>
+            <p className="mt-2 text-sm font-bold leading-7 text-amber-900/75">
+              {lang === "ar"
+                ? "ارفع الملف، اختار الشيت وصف العناوين، اربط الأعمدة، وبعدها هنفتح كل إعلان في نموذج النشر علشان تكمل الصورة الرئيسية والجاليري والـSEO وأي بيانات ناقصة قبل ما ينزل."
+                : "Upload the workbook, choose the sheet and header row, map columns, then complete each listing's thumbnail, gallery, SEO, and missing fields before publishing."}
+            </p>
+          </div>
+
+          <label className="grid min-h-36 cursor-pointer place-items-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-amber-400 hover:bg-amber-50">
+            <span><FiUploadCloud className="mx-auto text-4xl text-amber-700" /><strong className="mt-3 block text-lg font-black">{file?.name || (lang === "ar" ? "اختار ملف Excel" : "Choose an Excel workbook")}</strong><small className="mt-1 block font-bold text-slate-500">.xlsx / .xls · 15 MB max · 500 rows</small></span>
+            <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={chooseWorkbook} className="sr-only" />
+          </label>
+
+          {loading ? <div className="flex items-center justify-center gap-3 rounded-2xl bg-slate-950 p-4 text-sm font-black text-white"><FiLoader className="animate-spin text-amber-300" />{lang === "ar" ? "جاري تحليل الشيت..." : "Analysing workbook..."}</div> : null}
+          {error ? <AdminError message={error} /> : null}
+
+          {preview && file ? (
+            <div className="grid gap-5">
+              <div className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-5 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-end">
+                <Select label={lang === "ar" ? "الشيت المطلوب" : "Worksheet"} value={String(preview.selectedSheetIndex)} onChange={(value) => void loadWorkbook(file, Number(value), headerRow)}>
+                  {preview.sheets.map((sheet) => <option key={sheet.index} value={sheet.index}>{sheet.name} ({sheet.physicalRows})</option>)}
+                </Select>
+                <Field label={lang === "ar" ? "رقم صف العناوين" : "Header row"} type="number" value={String(headerRow)} onChange={(value) => setHeaderRow(Math.max(1, Number(value) || 1))} />
+                <Button icon={FiSearch} onClick={() => void loadWorkbook(file, preview.selectedSheetIndex, headerRow)}>{lang === "ar" ? "إعادة القراءة" : "Refresh"}</Button>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-black">{lang === "ar" ? "ربط أعمدة الشيت" : "Map worksheet columns"}</h3><p className="mt-1 text-xs font-bold text-slate-500">{lang === "ar" ? "تم اقتراح الربط تلقائيًا؛ راجعه وعدّل اللي محتاجه." : "Mappings were suggested automatically; review before continuing."}</p></div><span className="rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-amber-300">{preview.totalRows} {lang === "ar" ? "صف" : "rows"}</span></div>
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {importFieldDefinitions.filter((field) => field.primary).map((field) => (
+                    <ImportMappingSelect key={field.key} field={field} columns={preview.columns} value={mapping[field.key] || ""} lang={lang} onChange={(value) => setMapping((current) => ({ ...current, [field.key]: value || undefined }))} />
+                  ))}
+                </div>
+                <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <summary className="cursor-pointer text-sm font-black text-slate-700">{lang === "ar" ? "الأعمدة الاختيارية: المواعيد والجهة والـSEO" : "Optional columns: dates, beneficiary, and SEO"}</summary>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {importFieldDefinitions.filter((field) => !field.primary).map((field) => (
+                      <ImportMappingSelect key={field.key} field={field} columns={preview.columns} value={mapping[field.key] || ""} lang={lang} onChange={(value) => setMapping((current) => ({ ...current, [field.key]: value || undefined }))} />
+                    ))}
+                  </div>
+                </details>
+              </div>
+
+              <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white p-4">
+                <table className="min-w-full text-sm"><thead><tr>{preview.columns.slice(0, 6).map((column) => <th key={column.key} className="whitespace-nowrap border-b p-3 text-start font-black text-slate-700">{column.header}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 4).map((row) => <tr key={row.rowNumber}>{preview.columns.slice(0, 6).map((column) => <td key={column.key} className="max-w-56 truncate border-b p-3 font-semibold text-slate-500">{row.values[column.key] || "—"}</td>)}</tr>)}</tbody></table>
+              </div>
+
+              <Button icon={FiCheckCircle} onClick={prepareQueue}>{lang === "ar" ? "تجهيز قائمة الإعلانات ومراجعة النواقص" : "Prepare listings and review missing fields"}</Button>
+            </div>
+          ) : null}
+        </div>
+      </Panel>
+
+      {items.length ? (
+        <Panel title={lang === "ar" ? "طابور المراجعة والنشر" : "Review and publishing queue"} icon={FiLayers}>
+          <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl bg-slate-950 p-4 text-white"><strong>{publishedCount}/{items.length} {lang === "ar" ? "تم نشرهم" : "published"}</strong><div className="h-2 w-40 overflow-hidden rounded-full bg-white/15"><span className="block h-full bg-amber-400 transition-all" style={{ width: `${items.length ? (publishedCount / items.length) * 100 : 0}%` }} /></div></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {items.map((item, index) => <button key={item.rowNumber} type="button" onClick={() => !item.published && setActiveIndex(index)} className={`rounded-2xl border p-4 text-start transition ${item.published ? "border-emerald-200 bg-emerald-50" : activeIndex === index ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white hover:border-amber-300"}`}><span className="flex items-center justify-between gap-3"><strong className="line-clamp-1 text-sm font-black">{item.draft.titleAr || item.draft.titleEn || `${lang === "ar" ? "صف" : "Row"} ${item.rowNumber}`}</strong>{item.published ? <FiCheckCircle className="text-emerald-700" /> : <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black text-white">{item.missing.length}</span>}</span>{!item.published ? <small className="mt-2 line-clamp-2 block font-bold leading-6 text-slate-500">{item.missing.join(" · ")}</small> : <small className="mt-2 block font-bold text-emerald-700">{lang === "ar" ? "تم الحفظ والنشر" : "Saved and published"}</small>}</button>)}
+          </div>
+        </Panel>
+      ) : null}
+
+      {active ? (
+        <div className="grid gap-3">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-900">{lang === "ar" ? `دلوقتي بتراجع صف ${active.rowNumber}. كمّل الحقول الناقصة والصورة الرئيسية، ثم انشر علشان ننتقل تلقائيًا للي بعده.` : `You are reviewing row ${active.rowNumber}. Complete missing fields and the thumbnail, then publish to continue automatically.`}</div>
+          <ListingForm key={`import-${active.rowNumber}`} title={lang === "ar" ? `مراجعة صف ${active.rowNumber}` : `Review row ${active.rowNumber}`} submitLabel={lang === "ar" ? "نشر والانتقال للتالي" : "Publish and continue"} initial={active.draft} onSubmit={addListing} onFinished={finishCurrent} />
+        </div>
+      ) : items.length && publishedCount === items.length ? (
+        <div className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-8 text-center"><FiCheckCircle className="mx-auto text-5xl text-emerald-700" /><h2 className="mt-4 text-2xl font-black text-emerald-950">{lang === "ar" ? "كل صفوف الشيت اتراجعت واتنشرت" : "Every worksheet row was reviewed and published"}</h2></div>
+      ) : null}
+    </div>
+  );
+}
+
+function ImportMappingSelect({ field, columns, value, lang, onChange }: { field: ImportFieldDefinition; columns: WorkbookPreviewResponse["columns"]; value: string; lang: "ar" | "en"; onChange: (value: string) => void }) {
+  return <label className="grid gap-2"><span className="text-xs font-black text-slate-600">{lang === "ar" ? field.ar : field.en}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-amber-500"><option value="">{lang === "ar" ? "— غير مربوط —" : "— Not mapped —"}</option>{columns.map((column) => <option key={column.key} value={column.key}>{column.key}: {column.header}</option>)}</select></label>;
+}
+
 function AboutContentPanel({ view, content }: { view: DashboardView; content: AboutContent }) {
   const { lang } = useApp();
   const showProfile = view === "about-profile" || view === "about-content";
@@ -1504,30 +1840,140 @@ function ImagePlaceholder() { return <div className="grid h-36 place-items-cente
 function AdminError({ message }: { message: string }) { return <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700"><FiAlertCircle />{message}</div>; }
 function confirmDeleteAbout(lang: "ar" | "en", type: string) { return window.confirm(lang === "ar" ? "هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه الخطوة." : `Delete this ${type}? This cannot be undone.`); }
 
-const emptyServiceDraft: ServiceDraft = { kind: "arbitration", titleAr: "", titleEn: "", summaryAr: "", summaryEn: "", contentAr: "", contentEn: "", image: "", gallery: [], featured: true };
+const emptyServiceDraft: ServiceDraft = {
+  kind: "arbitration", titleAr: "", titleEn: "", summaryAr: "", summaryEn: "",
+  contentAr: "", contentEn: "", image: "", gallery: [], featured: true, displayOrder: 0,
+  seoTitleAr: "", seoTitleEn: "", seoDescriptionAr: "", seoDescriptionEn: "",
+  seoKeywordsAr: "", seoKeywordsEn: "",
+};
 
-function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete }: { kind: ServiceKind; services: ServiceArticle[]; onAdd: (draft: ServiceDraft) => void; onUpdate: (id: number, draft: ServiceDraft) => void; onDelete: (id: number) => void }) {
+function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete, onUploadImage }: {
+  kind: ServiceKind;
+  services: ServiceArticle[];
+  onAdd: (draft: ServiceDraft) => Promise<ServiceArticle>;
+  onUpdate: (id: number, draft: ServiceDraft) => Promise<ServiceArticle>;
+  onDelete: (id: number) => Promise<void>;
+  onUploadImage: (file: File) => Promise<string>;
+}) {
   const { lang } = useApp();
   const [draft, setDraft] = useState<ServiceDraft>({ ...emptyServiceDraft, kind });
   const [editing, setEditing] = useState<number | null>(null);
+  const [heroFile, setHeroFile] = useState<File | null>(null);
+  const [heroPreview, setHeroPreview] = useState("");
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const reset = (nextKind = kind) => {
+    setEditing(null);
+    setDraft({ ...emptyServiceDraft, kind: nextKind });
+    setHeroFile(null);
+    setHeroPreview("");
+    setGalleryFiles([]);
+    setGalleryPreviews([]);
+    setError("");
+  };
+
+  useEffect(() => reset(kind), [kind]);
+
   const patch = <K extends keyof ServiceDraft>(key: K, value: ServiceDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const edit = (item: ServiceArticle) => { setEditing(item.id); setDraft({ kind: item.kind, titleAr: item.title.ar, titleEn: item.title.en, summaryAr: item.summary.ar, summaryEn: item.summary.en, contentAr: item.content.ar, contentEn: item.content.en, image: item.image, gallery: item.gallery || [], featured: item.featured }); };
-  const submit = (event: FormEvent) => { event.preventDefault(); editing ? onUpdate(editing, draft) : onAdd({ ...draft, kind }); setEditing(null); setDraft({ ...emptyServiceDraft, kind }); };
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => { const [image] = await readImages(event.target.files); if (image) patch("image", image); };
-  const uploadGallery = async (event: ChangeEvent<HTMLInputElement>) => { const images = await readImages(event.target.files); if (images.length) patch("gallery", [...draft.gallery, ...images]); };
+  const edit = (item: ServiceArticle) => {
+    setEditing(item.id);
+    setHeroFile(null);
+    setHeroPreview("");
+    setGalleryFiles([]);
+    setGalleryPreviews([]);
+    setDraft({
+      kind: item.kind,
+      titleAr: item.title.ar,
+      titleEn: item.title.en,
+      summaryAr: item.summary.ar,
+      summaryEn: item.summary.en,
+      contentAr: item.content.ar,
+      contentEn: item.content.en,
+      image: item.image,
+      gallery: item.gallery || [],
+      featured: item.featured,
+      displayOrder: item.displayOrder ?? 0,
+      seoTitleAr: item.seoTitle?.ar ?? "",
+      seoTitleEn: item.seoTitle?.en ?? "",
+      seoDescriptionAr: item.seoDescription?.ar ?? "",
+      seoDescriptionEn: item.seoDescription?.en ?? "",
+      seoKeywordsAr: item.seoKeywords?.ar ?? "",
+      seoKeywordsEn: item.seoKeywords?.en ?? "",
+    });
+  };
+
+  const chooseHero = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    const [preview] = await readImages(event.target.files);
+    setHeroFile(selected);
+    setHeroPreview(preview || "");
+    event.target.value = "";
+  };
+
+  const chooseGallery = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (!selected.length) return;
+    if (draft.gallery.length + galleryFiles.length + selected.length > 20) {
+      setError(lang === "ar" ? "الجاليري يقبل 20 صورة بحد أقصى." : "The gallery supports up to 20 images.");
+      return;
+    }
+    const previews = await readImages(event.target.files);
+    setGalleryFiles((current) => [...current, ...selected]);
+    setGalleryPreviews((current) => [...current, ...previews]);
+    event.target.value = "";
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.image && !heroFile) {
+      setError(lang === "ar" ? "صورة الـHero مطلوبة." : "A hero image is required.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const image = heroFile ? await onUploadImage(heroFile) : draft.image;
+      const uploadedGallery = galleryFiles.length ? await Promise.all(galleryFiles.map(onUploadImage)) : [];
+      const payload = { ...draft, image, gallery: [...draft.gallery, ...uploadedGallery] };
+      if (editing) await onUpdate(editing, payload);
+      else await onAdd(payload);
+      reset(kind);
+    } catch (caught) {
+      setError(requestError(caught, lang === "ar" ? "تعذر حفظ المقال." : "Could not save the article."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    if (!window.confirm(lang === "ar" ? "حذف المقال نهائيًا؟" : "Delete this article permanently?")) return;
+    setBusy(true);
+    setError("");
+    try { await onDelete(id); if (editing === id) reset(kind); }
+    catch (caught) { setError(requestError(caught, lang === "ar" ? "تعذر حذف المقال." : "Could not delete the article.")); }
+    finally { setBusy(false); }
+  };
+
   return <div className="grid gap-6">
-    <Panel title={lang === "ar" ? "إدارة الخدمات وقطاعات التحكيم" : "Manage services & arbitration"} icon={FiFileText}>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
-        <div className="grid content-start gap-3">{services.filter((item) => item.kind === kind).map((item) => <article key={item.id} className="grid gap-4 rounded-3xl border border-slate-200 p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:items-center"><LazyImage src={item.image} alt="" className="h-20 w-full rounded-2xl object-cover sm:w-20"/><div><strong className="block text-lg font-black">{item.title[lang]}</strong><small className="mt-1 block font-bold text-slate-500">{item.kind}</small></div><div className="flex gap-2"><button onClick={() => edit(item)} className="h-10 rounded-xl border px-4 text-sm font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button onClick={() => onDelete(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div>
+    <Panel title={lang === "ar" ? "إدارة مقالات القطاعات" : "Manage sector articles"} icon={FiFileText}>
+      {error ? <div className="mb-5"><AdminError message={error} /></div> : null}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_480px]">
+        <div className="grid content-start gap-3">{services.filter((item) => item.kind === kind).map((item) => <article key={item.id} className="grid gap-4 rounded-3xl border border-slate-200 p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:items-center"><LazyImage src={item.image} alt="" className="h-20 w-full rounded-2xl object-cover sm:w-20"/><div><strong className="block text-lg font-black">{item.title[lang]}</strong><small className="mt-1 block font-bold text-slate-500">{item.slug} · #{item.displayOrder ?? 0}</small></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => edit(item)} className="h-10 rounded-xl border px-4 text-sm font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void remove(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div>
         <form onSubmit={submit} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
-          <div className="flex items-center justify-between"><h3 className="text-xl font-black">{editing ? (lang === "ar" ? "تعديل المقال" : "Edit article") : (lang === "ar" ? "إضافة مقال" : "Add article")}</h3>{editing && <button type="button" onClick={() => { setEditing(null); setDraft({ ...emptyServiceDraft, kind }); }} className="text-sm font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button>}</div>
+          <div className="flex items-center justify-between"><div><span className="text-xs font-black uppercase text-amber-700">{lang === "ar" ? "مقال + Hero + SEO" : "Article + hero + SEO"}</span><h3 className="mt-1 text-xl font-black">{editing ? (lang === "ar" ? "تعديل المقال" : "Edit article") : (lang === "ar" ? "إضافة مقال" : "Add article")}</h3></div>{editing && <button type="button" onClick={() => reset(kind)} className="text-sm font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button>}</div>
           <Select label={lang === "ar" ? "القسم" : "Section"} value={draft.kind} onChange={(value) => patch("kind", value as ServiceKind)}><option value="arbitration">{lang === "ar" ? "قطاعات التحكيم" : "Arbitration"}</option><option value="valuation">{lang === "ar" ? "التقييمات ودراسات الجدوى" : "Valuation"}</option><option value="consulting">{lang === "ar" ? "الاستشارات" : "Consulting"}</option></Select>
-          <Field label="العنوان بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required/><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)}/>
+          <Field label="العنوان بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required/><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)} required/>
           <Textarea label="ملخص بالعربية" value={draft.summaryAr} onChange={(v) => patch("summaryAr", v)}/><Textarea label="English summary" value={draft.summaryEn} onChange={(v) => patch("summaryEn", v)}/>
-          <FileInput label={lang === "ar" ? "صورة المقال" : "Article image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} onChange={upload}/>{draft.image && <LazyImage src={draft.image} alt="" className="h-36 w-full rounded-2xl object-cover"/>}
-          <FileInput label={lang === "ar" ? "مجموعة صور إضافية" : "Additional gallery"} button={lang === "ar" ? "رفع مجموعة صور" : "Upload images"} multiple onChange={uploadGallery}/>{draft.gallery.length ? <div className="grid grid-cols-3 gap-2">{draft.gallery.map((image, index) => <LazyImage key={index} src={image} alt="" className="h-20 w-full rounded-xl object-cover" />)}</div> : null}
+          <div className="grid gap-3 sm:grid-cols-2"><Field type="number" label={lang === "ar" ? "ترتيب الظهور" : "Display order"} value={String(draft.displayOrder)} onChange={(value) => patch("displayOrder", Math.max(0, Number(value) || 0))} /><label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black"><input type="checkbox" checked={draft.featured} onChange={(event) => patch("featured", event.target.checked)} className="h-5 w-5 accent-amber-500" />{lang === "ar" ? "مميز في الرئيسية" : "Featured on home"}</label></div>
+          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "صورة الـHero" : "Hero image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} onChange={chooseHero}/>{heroPreview || draft.image ? <LazyImage src={heroPreview || draft.image} alt="" className="h-44 w-full rounded-2xl object-cover"/> : null}
+          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "صور الجاليري" : "Gallery images"} button={lang === "ar" ? "اختيار صور" : "Choose images"} multiple onChange={chooseGallery}/>{draft.gallery.length || galleryPreviews.length ? <div className="grid grid-cols-3 gap-2">{[...draft.gallery, ...galleryPreviews].map((image, index) => <div key={`${image.slice(0, 24)}-${index}`} className="relative"><LazyImage src={image} alt="" className="h-20 w-full rounded-xl object-cover"/><button type="button" onClick={() => index < draft.gallery.length ? patch("gallery", draft.gallery.filter((_, itemIndex) => itemIndex !== index)) : (() => { const fileIndex = index - draft.gallery.length; setGalleryFiles((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); setGalleryPreviews((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); })()} className="absolute end-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-slate-950/80 text-white"><FiX /></button></div>)}</div> : null}
           <RichTextEditor label="محتوى المقال بالعربية" value={draft.contentAr} onChange={(v) => patch("contentAr", v)} placeholder="اكتب المحتوى ونسقه مثل Word"/><RichTextEditor label="Article content in English" value={draft.contentEn} onChange={(v) => patch("contentEn", v)} placeholder="Write and format the article"/>
-          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white"><FiSave />{lang === "ar" ? "حفظ ونشر" : "Save & publish"}</button>
+          <details className="rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-black">SEO</summary><div className="mt-4 grid gap-3"><Field label="SEO title AR" value={draft.seoTitleAr} onChange={(v) => patch("seoTitleAr", v)}/><Field label="SEO title EN" value={draft.seoTitleEn} onChange={(v) => patch("seoTitleEn", v)}/><Textarea label="SEO description AR" value={draft.seoDescriptionAr} onChange={(v) => patch("seoDescriptionAr", v)}/><Textarea label="SEO description EN" value={draft.seoDescriptionEn} onChange={(v) => patch("seoDescriptionEn", v)}/><Field label="SEO keywords AR" value={draft.seoKeywordsAr} onChange={(v) => patch("seoKeywordsAr", v)}/><Field label="SEO keywords EN" value={draft.seoKeywordsEn} onChange={(v) => patch("seoKeywordsEn", v)}/></div></details>
+          <button disabled={busy} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-60">{busy ? <FiLoader className="animate-spin" /> : <FiSave />}{busy ? (lang === "ar" ? "جاري الرفع والحفظ..." : "Uploading and saving...") : (lang === "ar" ? "حفظ ونشر" : "Save & publish")}</button>
         </form>
       </div>
     </Panel>
