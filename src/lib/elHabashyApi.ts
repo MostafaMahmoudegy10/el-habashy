@@ -33,6 +33,9 @@ export type {
   UpsertCertificateBody,
   UpsertWorkCategoryBody,
   UpsertWorkEntryBody,
+  ServiceArticleResponse,
+  UpsertServiceArticleBody,
+  WorkbookPreviewResponse,
 } from "./contentApi";
 export type {
   AuthResponse,

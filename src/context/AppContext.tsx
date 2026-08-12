@@ -25,6 +25,7 @@ import {
   type ListingSubmissionMedia,
   type SectorResponse,
   type UpsertListingBody,
+  type UpsertServiceArticleBody,
   type UpdateAboutProfileBody,
   type UpsertAboutDepartmentBody,
   type UpsertAboutPersonBody,
@@ -138,10 +139,12 @@ type AppContextValue = {
   updateWorkEntry: (id: number, entry: UpsertWorkEntryBody) => Promise<WorkEntry>;
   deleteWorkEntry: (id: number) => Promise<void>;
   uploadAboutImage: (file: File) => Promise<string>;
+  reloadServices: () => Promise<void>;
   selectService: (id: number) => void;
-  addService: (draft: ServiceDraft) => void;
-  updateService: (id: number, draft: ServiceDraft) => void;
-  deleteService: (id: number) => void;
+  addService: (draft: ServiceDraft) => Promise<ServiceArticle>;
+  updateService: (id: number, draft: ServiceDraft) => Promise<ServiceArticle>;
+  deleteService: (id: number) => Promise<void>;
+  uploadServiceImage: (file: File) => Promise<string>;
   setToast: (message: string) => void;
 };
 
@@ -149,36 +152,28 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 const fallbackImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=84";
-const storageKeys = {
-  services: "elhabashy:services",
-};
-
 const categoryIds: ListingCategory[] = ["real-estate", "movables", "cars", "antiques", "scrap", "other"];
 
-function serviceFromDraft(draft: ServiceDraft, id: number, current?: ServiceArticle): ServiceArticle {
+function serviceDraftToRequest(draft: ServiceDraft): UpsertServiceArticleBody {
+  const title = normalizePair(draft.titleAr, draft.titleEn);
+  const summary = normalizePair(draft.summaryAr, draft.summaryEn);
+  const content = normalizePair(
+    sanitizeRichText(draft.contentAr),
+    sanitizeRichText(draft.contentEn || draft.contentAr),
+  );
   return {
-    id,
     kind: draft.kind,
-    title: { ar: draft.titleAr, en: draft.titleEn || draft.titleAr },
-    summary: { ar: draft.summaryAr, en: draft.summaryEn || draft.summaryAr },
-    content: {
-      ar: sanitizeRichText(draft.contentAr),
-      en: sanitizeRichText(draft.contentEn || draft.contentAr),
-    },
-    image: draft.image || current?.image || "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=85",
-    gallery: draft.gallery || current?.gallery || [],
+    title,
+    summary,
+    content,
+    image: draft.image,
+    gallery: draft.gallery,
     featured: draft.featured,
-    createdAt: current?.createdAt || new Date().toISOString().slice(0, 10),
+    displayOrder: draft.displayOrder,
+    seoTitle: optionalText(draft.seoTitleAr, draft.seoTitleEn),
+    seoDescription: optionalText(draft.seoDescriptionAr, draft.seoDescriptionEn),
+    seoKeywords: optionalText(draft.seoKeywordsAr, draft.seoKeywordsEn),
   };
-}
-
-function readStored<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 function slugify(value: string) {
@@ -202,8 +197,12 @@ function normalizeService(service: ServiceArticle): ServiceArticle {
     title: normalizeText(service.title),
     summary: normalizeText(service.summary),
     content: normalizeText(service.content),
-    gallery: Array.isArray(service.gallery) && service.gallery.filter(Boolean).length ? service.gallery.filter(Boolean) : seed?.gallery ?? [],
+    gallery: Array.isArray(service.gallery) ? service.gallery.filter(Boolean) : seed?.gallery ?? [],
     image: service.image || seed?.image || fallbackImage,
+    displayOrder: service.displayOrder ?? seed?.displayOrder ?? 0,
+    seoTitle: service.seoTitle ? normalizeText(service.seoTitle) : undefined,
+    seoDescription: service.seoDescription ? normalizeText(service.seoDescription) : undefined,
+    seoKeywords: service.seoKeywords ? normalizeText(service.seoKeywords) : undefined,
   };
 }
 
@@ -493,10 +492,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     normalizeSectors(cachedPublicContent.sectors ?? []));
   const [sectorsLoading, setSectorsLoading] = useState(!cachedPublicContent.sectors?.length);
   const [sectorsError, setSectorsError] = useState("");
-  const [services, setServices] = useState<ServiceArticle[]>(() => {
-    const stored = readStored<ServiceArticle[]>(storageKeys.services, []);
-    return [...stored, ...initialServices.filter((seed) => !stored.some((item) => item.id === seed.id))].map(normalizeService);
-  });
+  const [services, setServices] = useState<ServiceArticle[]>(() =>
+    (cachedPublicContent.services?.length ? cachedPublicContent.services : initialServices).map(normalizeService));
   const [selectedServiceId, setSelectedServiceId] = useState(initialServices[0].id);
   const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
   const [selectedListingDetail, setSelectedListingDetail] = useState<Listing | undefined>();
@@ -581,6 +578,18 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const reloadServices = useCallback(async () => {
+    try {
+      const response = await elHabashyApi.public.services();
+      const nextServices = response.map(normalizeService)
+        .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      setServices(nextServices);
+      updatePublicContentCache({ services: nextServices });
+    } catch {
+      setServices((current) => current.length ? current : initialServices.map(normalizeService));
+    }
+  }, []);
+
   const reloadAboutContent = useCallback(async () => {
     setAboutLoading(!cachedPublicContent.about && !aboutContentRef.current.profile.headline.ar);
     setAboutError("");
@@ -605,8 +614,8 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [authorizedRequest, cachedPublicContent.about, currentUser?.role]);
 
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadSectors(), loadPublicSettings()]);
-  }, [loadPublicListings, loadPublicSettings, loadSectors]);
+    await Promise.all([loadPublicListings(), loadSectors(), loadPublicSettings(), reloadServices()]);
+  }, [loadPublicListings, loadPublicSettings, loadSectors, reloadServices]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -658,10 +667,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void reloadAdminListings();
   }, [reloadAdminListings]);
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKeys.services, JSON.stringify(services));
-  }, [services]);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -790,7 +795,13 @@ export function AppProvider({ children }: PropsWithChildren) {
           page: query.page ?? 0,
           size: query.size ?? 100,
         });
-        return response.content.map(listingFromResponse);
+        const results = response.content.map(listingFromResponse);
+        setListings((current) => {
+          const merged = new Map(current.map((listing) => [listing.id, listing]));
+          results.forEach((listing) => merged.set(listing.id, listing));
+          return [...merged.values()];
+        });
+        return results;
       },
       toggleFavorite(id) {
         if (!currentUser) {
@@ -988,23 +999,39 @@ export function AppProvider({ children }: PropsWithChildren) {
         const response = await elHabashyApi.admin.content.uploadAboutImage(authorizedRequest, file);
         return response.url;
       },
+      reloadServices,
       selectService(id) {
         setSelectedServiceId(id);
         setPage("service-details");
         setMobileOpen(false);
       },
-      addService(draft) {
-        const id = Math.max(0, ...services.map((item) => item.id)) + 1;
-        setServices((current) => [serviceFromDraft(draft, id), ...current]);
+      async addService(draft) {
+        const created = normalizeService(await elHabashyApi.admin.content.createService(
+          authorizedRequest,
+          serviceDraftToRequest(draft),
+        ));
+        await reloadServices();
+        setToast(t.success);
+        return created;
+      },
+      async updateService(id, draft) {
+        const updated = normalizeService(await elHabashyApi.admin.content.updateService(
+          authorizedRequest,
+          id,
+          serviceDraftToRequest(draft),
+        ));
+        await reloadServices();
+        setToast(t.success);
+        return updated;
+      },
+      async deleteService(id) {
+        await elHabashyApi.admin.content.deleteService(authorizedRequest, id);
+        await reloadServices();
         setToast(t.success);
       },
-      updateService(id, draft) {
-        setServices((current) => current.map((item) => item.id === id ? serviceFromDraft(draft, id, item) : item));
-        setToast(t.success);
-      },
-      deleteService(id) {
-        setServices((current) => current.filter((item) => item.id !== id));
-        setToast(t.success);
+      async uploadServiceImage(file) {
+        const response = await elHabashyApi.admin.content.uploadServiceImage(authorizedRequest, file);
+        return response.url;
       },
       setToast,
     }),
@@ -1032,6 +1059,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       reloadAdminListings,
       reloadAboutContent,
       reloadContent,
+      reloadServices,
       selectedListing,
       selectedListingDetail,
       settings,

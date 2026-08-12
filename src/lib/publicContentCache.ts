@@ -1,4 +1,4 @@
-import type { AboutContent, AppSettings, Listing, Sector } from "../types";
+import type { AboutContent, AppSettings, Listing, Sector, ServiceArticle } from "../types";
 
 const CACHE_KEY = "elhabashy:public-content:v1";
 const CACHE_VERSION = 1;
@@ -9,6 +9,7 @@ export type PublicContentSnapshot = {
   sectors?: Sector[];
   settings?: AppSettings;
   about?: AboutContent;
+  services?: ServiceArticle[];
 };
 
 type CacheEnvelope = {
