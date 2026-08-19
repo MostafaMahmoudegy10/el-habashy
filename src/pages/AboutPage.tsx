@@ -258,7 +258,7 @@ function PreviousWorkSection() {
         <SectionHeading
           eyebrow={isArabic ? "خبرات موثقة" : "Documented expertise"}
           title={isArabic ? "سابقة أعمال بتفاصيلها" : "Previous work, with the details that matter"}
-          description={isArabic ? "كل مشروع يعرض الجهة والموقع والسنة ونطاق العمل، بدل الاكتفاء بقائمة أسماء غير واضحة." : "Every project includes its client, location, year and scope—not just an unexplained list of names."}
+          description={isArabic ? "نماذج من المشروعات التي نفذتها الحبشي في مجالات الخبرة والتثمين وإدارة المزادات." : "Selected projects delivered by El Habashy across valuation, appraisal, and auction management."}
         />
         <div className="shrink-0 rounded-2xl bg-[#0a3b2d] px-6 py-4 text-white">
           <strong className="text-3xl text-[#ebd28f]">{projects}</strong>
@@ -317,7 +317,7 @@ function CertificatesSection() {
       <SectionHeading
         eyebrow={isArabic ? "تقدير وثقة" : "Recognition and trust"}
         title={isArabic ? "شهادات التقدير" : "Certificates and recognition"}
-        description={isArabic ? "عرض بصري واضح لكل شهادة، مع الجهة المانحة والتاريخ ووصف سبب التكريم." : "A clear visual record of every certificate, including issuer, date and the reason for recognition."}
+        description={isArabic ? "شهادات وتكريمات حصلت عليها الحبشي تقديرًا لخبرتها وأعمالها." : "Certificates and recognition awarded to El Habashy for its expertise and work."}
       />
       <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {aboutContent.certificates.map((certificate) => (
@@ -352,8 +352,8 @@ function OrganizationSection() {
     <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12 lg:py-20">
       <SectionHeading
         eyebrow={isArabic ? "فريق العمل" : "Our team"}
-        title={isArabic ? "هيكل تنظيمي واضح وقابل للتوسع" : "A clear, scalable organization"}
-        description={isArabic ? "كل خبير له دوره ونبذته وصورته، ويمكن إضافة أعضاء وأقسام جديدة من لوحة التحكم في أي وقت." : "Every expert has a role, biography and photo, while new people and departments can be added at any time."}
+        title={isArabic ? "فريق الحبشي" : "The El Habashy team"}
+        description={isArabic ? "خبرات متخصصة تعمل معًا في التثمين والتحكيم وإدارة المزادات والاستشارات." : "Specialists working together across valuation, arbitration, auction management, and consulting."}
       />
 
       <div className="relative mt-12">

@@ -27,7 +27,7 @@ import { useApp } from "../context/AppContext";
 import { ListingCard } from "../components/ListingCard";
 import { LazyImage } from "../components/LazyImage";
 import { SectionHeading } from "../components/SectionHeading";
-import heroBackground from "../assets/elhabashy-hero-bg.png";
+import heroBackground from "../assets/elhabashy-hero-bg.jpg";
 import type { Listing } from "../types";
 
 export function HomePage() {
@@ -405,12 +405,12 @@ function LatestAdditionsPanel({ listings }: { listings: Listing[] }) {
           <div>
             <span className="text-xs font-black uppercase text-emerald-700">{t.latestListings}</span>
             <h3 className="mt-2 text-3xl font-black leading-tight text-slate-950">
-              {lang === "ar" ? "أحدث الإضافات بشكل سريع ومنظم" : "Latest additions, made easy to scan"}
+              {lang === "ar" ? "أحدث العروض" : "Latest listings"}
             </h3>
             <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">
               {lang === "ar"
-                ? "هنا العميل يشوف الجديد فورًا كمسار زمني: صورة كبيرة للعرض الحالي وقائمة مختصرة لباقي الإضافات."
-                : "A timeline-style view with a large current listing and a quick list of recent additions."}
+                ? "تابع آخر العروض المضافة وتفاصيلها."
+                : "Explore the latest listings and their details."}
             </p>
           </div>
 
@@ -470,11 +470,11 @@ function MostContactedBoard({ listings }: { listings: Listing[] }) {
       <div className="relative">
         <SectionHeading
           eyebrow={t.mostContacted}
-          title={lang === "ar" ? "العروض الأكثر تواصلا من العملاء" : "Most contacted by customers"}
+          title={lang === "ar" ? "الأكثر طلبًا" : "Most requested"}
           subtitle={
             lang === "ar"
-              ? "ترتيب واضح يبين أي أصول عليها تواصل أعلى ويشجع العميل يتحرك بسرعة."
-              : "A ranked board that makes customer contact obvious and helps customers move faster."
+              ? "العروض التي تحظى بأكبر اهتمام من الزوار."
+              : "Listings receiving the most interest from visitors."
           }
           inverted
         />
@@ -555,13 +555,13 @@ function TopRequestedStat({ value, label }: { value: string; label: string }) {
 }
 
 function HomeAboutPreview() {
-  const { lang, t, sectors, navigate } = useApp();
+  const { lang, t, sectors, aboutContent, navigate } = useApp();
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
 
   const stats = [
-    { value: "15+", label: lang === "ar" ? "سنة خبرة" : "Years of experience" },
-    { value: "120+", label: lang === "ar" ? "مزايدة وأصل منظم" : "Organized assets" },
-    { value: sectors.length, label: lang === "ar" ? "قطاعات أصول" : "Asset sectors" },
+    { value: aboutContent.profile.startedYear, label: lang === "ar" ? "بداية المسيرة" : "Established" },
+    { value: sectors.length, label: lang === "ar" ? "قطاعات العمل" : "Business sectors" },
+    { value: aboutContent.workCategories.length, label: lang === "ar" ? "مجالات سابقة الأعمال" : "Previous work areas" },
   ];
 
   const strengths = [
@@ -605,13 +605,13 @@ function HomeAboutPreview() {
           <span className="text-xs font-black uppercase text-emerald-700">{t.about}</span>
           <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 md:text-5xl">
             {lang === "ar"
-              ? "الحبشي مش مجرد عرض أصول، ده خبرة مزايدات وتقييم وتنظيم مستندات."
-              : "El Habashy is valuation, auction experience, and organized documentation."}
+              ? "خبرة ممتدة في التثمين وإدارة المزادات"
+              : "Long-standing expertise in valuation and auction management"}
           </h2>
           <p className="mt-5 text-sm font-semibold leading-8 text-slate-600 md:text-base">
             {lang === "ar"
-              ? "نجهز تجربة عرض محترمة للأصول: عقارات، سيارات، أنتيكات، وسكراب. الهدف إن العميل يفهم العرض بسرعة ويتواصل مع الفريق بخطوات واضحة."
-              : "We prepare a premium asset showcase across real estate, cars, antiques, and scrap so customers understand listings quickly and contact the team easily."}
+              ? "تقدم الحبشي خدمات الخبرة والتثمين وإدارة المزادات للأصول العقارية والمنقولة، مع تنظيم المعاينات والمستندات والتواصل مع الأطراف المعنية."
+              : "El Habashy provides valuation and auction management for real estate and movable assets, including viewings, documentation, and client coordination."}
           </p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
@@ -669,12 +669,12 @@ function ContactExperience() {
           <div>
             <span className="text-xs font-black uppercase text-amber-300">{t.contact}</span>
             <h2 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
-              {lang === "ar" ? "تواصل واضح مع فريق الحبشي." : "Clear contact with the El Habashy team."}
+              {lang === "ar" ? "تواصل مع فريق الحبشي" : "Contact the El Habashy team"}
             </h2>
             <p className="mt-5 text-sm font-semibold leading-8 text-slate-300">
               {lang === "ar"
-                ? "افتح تفاصيل العرض أو تواصل مع الفريق لمعرفة المستندات المطلوبة، مواعيد المعاينة، وخطوات استلام البيانات."
-                : "Open the listing details or contact the team for documents, viewing dates, and next steps."}
+                ? "للاستفسار عن العروض أو مواعيد المعاينة والمستندات المطلوبة."
+                : "For listing enquiries, viewing dates, and required documents."}
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <button

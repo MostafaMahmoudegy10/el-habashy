@@ -1,19 +1,20 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
 import { Toast } from "./components/Toast";
 import { AppProvider, useApp } from "./context/AppContext";
 import { AboutPage } from "./pages/AboutPage";
 import { AuthPage } from "./pages/AuthPage";
-import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { ListingsPage } from "./pages/ListingsPage";
 import { ServiceDetailsPage, ServicesPage } from "./pages/ServicesPage";
 import { useAuth } from "./context/AuthContext";
 
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+
 function AppShell() {
-  const { page, navigate } = useApp();
+  const { lang, page, navigate } = useApp();
   const { user, authLoading } = useAuth();
 
   useEffect(() => {
@@ -36,7 +37,11 @@ function AppShell() {
         {page === "service-details" && <ServiceDetailsPage />}
         {page === "login" && <AuthPage mode="login" />}
         {page === "register" && <AuthPage mode="register" />}
-        {page === "dashboard" && user?.role === "ADMIN" && <DashboardPage />}
+        {page === "dashboard" && user?.role === "ADMIN" && (
+          <Suspense fallback={<div className="grid min-h-[60vh] place-items-center text-sm font-black text-slate-600">{lang === "ar" ? "جاري فتح لوحة التحكم..." : "Opening dashboard..."}</div>}>
+            <DashboardPage />
+          </Suspense>
+        )}
       </main>
       <Footer />
       <Toast />

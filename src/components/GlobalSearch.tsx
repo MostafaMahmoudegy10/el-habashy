@@ -86,8 +86,8 @@ export function GlobalSearch() {
             <div className="bg-slate-950 p-5 text-white sm:p-7">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <span className="text-xs font-black uppercase text-amber-300">{lang === "ar" ? "بحث شامل" : "Global search"}</span>
-                  <h2 className="mt-1 text-2xl font-black">{lang === "ar" ? "دور في كل تفاصيل العروض" : "Search every listing detail"}</h2>
+                  <span className="text-xs font-black uppercase text-amber-300">{lang === "ar" ? "العروض" : "Listings"}</span>
+                  <h2 className="mt-1 text-2xl font-black">{lang === "ar" ? "ابحث عن عرض" : "Find a listing"}</h2>
                 </div>
                 <button type="button" onClick={() => setOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Close"><FiX /></button>
               </div>
@@ -97,7 +97,7 @@ export function GlobalSearch() {
                   ref={inputRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder={lang === "ar" ? "اكتب اسم العرض، المدينة، المواصفات، الجهة أو أي كلمة..." : "Title, city, specifications, beneficiary or any keyword..."}
+                  placeholder={lang === "ar" ? "ابحث في العروض..." : "Search listings..."}
                   className="min-w-0 flex-1 bg-transparent py-3 text-sm font-bold outline-none sm:text-base"
                 />
                 {loading ? <FiLoader className="animate-spin text-amber-700" /> : null}
@@ -108,11 +108,11 @@ export function GlobalSearch() {
               {error ? <p className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</p> : null}
               {!error && query.trim().length < 2 ? (
                 <div className="grid min-h-40 place-items-center text-center text-sm font-bold leading-7 text-slate-500">
-                  {lang === "ar" ? "اكتب حرفين على الأقل، والبحث هيشمل الوصف والمواصفات والـSEO وكل بيانات العرض." : "Type at least two characters. Search covers descriptions, specifications, SEO, and all listing data."}
+                  {lang === "ar" ? "اكتب كلمة للبحث" : "Enter a search term"}
                 </div>
               ) : null}
               {!error && query.trim().length >= 2 && !loading && !results.length ? (
-                <div className="grid min-h-40 place-items-center text-sm font-black text-slate-500">{lang === "ar" ? "مفيش نتائج مطابقة." : "No matching listings."}</div>
+                <div className="grid min-h-40 place-items-center text-sm font-black text-slate-500">{lang === "ar" ? "لا توجد نتائج مطابقة." : "No matching listings."}</div>
               ) : null}
               {results.length ? (
                 <div className="grid gap-3">
@@ -128,7 +128,7 @@ export function GlobalSearch() {
                     </button>
                   ))}
                   <button type="button" onClick={() => { setOpen(false); navigateListings("all"); }} className="mt-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-5 text-sm font-black text-slate-700 hover:border-amber-300">
-                    {lang === "ar" ? "عرض صفحة كل العروض" : "Open all listings"}<Arrow />
+                    {lang === "ar" ? "كل العروض" : "View all listings"}<Arrow />
                   </button>
                 </div>
               ) : null}
