@@ -11,7 +11,6 @@ import {
 import {
   initialAboutContent,
   initialSettings,
-  initialSubscribers,
 } from "../data/properties";
 import { useAuth } from "./AuthContext";
 import { copy } from "../lib/i18n";
@@ -77,7 +76,6 @@ type AppContextValue = {
   listingDashboard?: ListingDashboardData;
   listingInsights?: ListingInsightsData;
   listingCities: LocalizedText[];
-  subscribers: typeof initialSubscribers;
   settings: AppSettings;
   aboutContent: AboutContent;
   aboutLoading: boolean;
@@ -794,7 +792,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       listingDashboard,
       listingInsights,
       listingCities,
-      subscribers: initialSubscribers,
       settings,
       aboutContent,
       aboutLoading,

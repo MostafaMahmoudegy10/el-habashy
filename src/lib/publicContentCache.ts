@@ -1,7 +1,7 @@
 import type { AboutContent, AppSettings, Listing, Sector, ServiceArticle } from "../types";
 
 const CACHE_KEY = "elhabashy:public-content:v1";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type PublicContentSnapshot = {
