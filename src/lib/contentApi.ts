@@ -37,9 +37,29 @@ export type ListingQuery = {
   status?: ListingStatus;
   featured?: boolean;
   q?: string;
+  city?: string;
   page?: number;
   size?: number;
   sort?: string;
+};
+
+export type ListingDashboardResponse = {
+  totalListings: number;
+  activeListings: number;
+  totalViews: number;
+  totalWhatsappClicks: number;
+  mostViewedListing?: ListingResponse;
+  mostContactedListing?: ListingResponse;
+  topContactedListings: ListingResponse[];
+};
+
+export type PublicListingInsightsResponse = {
+  totalListings: number;
+  activeListings: number;
+  totalViews: number;
+  totalWhatsappClicks: number;
+  mostViewedListing?: ListingResponse;
+  topContactedListings: ListingResponse[];
 };
 
 export type ListingEngagementResponse = {
@@ -94,7 +114,11 @@ export type WorkbookPreviewResponse = {
   selectedSheetIndex: number;
   headerRow: number;
   columns: Array<{ key: string; header: string; index: number }>;
-  rows: Array<{ rowNumber: number; values: Record<string, string> }>;
+  rows: Array<{
+    rowNumber: number;
+    values: Record<string, string>;
+    images: Array<{ columnKey: string; fileName: string; contentType: string; dataBase64: string }>;
+  }>;
   totalRows: number;
 };
 
@@ -143,8 +167,10 @@ function queryString(query: ListingQuery = {}) {
 
 export const publicContentApi = {
   sectors: () => apiRequest<SectorResponse[]>("/api/v1/public/sectors"),
-  listings: (query: ListingQuery = {}) =>
-    apiRequest<PageResponse<ListingResponse>>(`/api/v1/public/listings${queryString(query)}`),
+  listings: (query: ListingQuery = {}, options: Pick<RequestInit, "signal"> = {}) =>
+    apiRequest<PageResponse<ListingResponse>>(`/api/v1/public/listings${queryString(query)}`, options),
+  listingCities: () => apiRequest<LocalizedText[]>("/api/v1/public/listings/cities"),
+  listingInsights: () => apiRequest<PublicListingInsightsResponse>("/api/v1/public/listings/insights"),
   listing: (slug: string) =>
     apiRequest<ListingResponse>(`/api/v1/public/listings/${encodeURIComponent(slug)}`),
   trackWhatsappClick: (slug: string) =>
@@ -166,6 +192,8 @@ export type AuthorizedRequest = <T>(
 export const adminContentApi = {
   listings: (request: AuthorizedRequest, query: ListingQuery = {}) =>
     request<PageResponse<ListingResponse>>(`/api/v1/admin/listings${queryString(query)}`),
+  listingDashboard: (request: AuthorizedRequest) =>
+    request<ListingDashboardResponse>("/api/v1/admin/listings/dashboard"),
   createListing: (
     request: AuthorizedRequest,
     body: UpsertListingBody,

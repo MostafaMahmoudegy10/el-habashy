@@ -22,6 +22,8 @@ export type {
   AboutImageResponse,
   AuthorizedRequest,
   ListingEngagementResponse,
+  ListingDashboardResponse,
+  PublicListingInsightsResponse,
   ListingQuery,
   ListingResponse,
   ListingSubmissionMedia,
