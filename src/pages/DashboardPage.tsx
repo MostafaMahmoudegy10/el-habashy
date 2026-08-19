@@ -79,6 +79,7 @@ export function DashboardPage() {
     adminListings: listings,
     adminListingsLoading,
     adminListingsError,
+    listingDashboard,
     reloadAdminListings,
     reloadContent,
     sectorsLoading,
@@ -105,12 +106,12 @@ export function DashboardPage() {
   const [confirmDelete, setConfirmDelete] = useState<Listing | null>(null);
   const [changingListingId, setChangingListingId] = useState<number | null>(null);
   const [mutationError, setMutationError] = useState("");
-  const activeCount = listings.filter((listing) => listing.status === "active").length;
-  const totalWhatsapp = listings.reduce((sum, listing) => sum + listing.whatsappClicks, 0);
-  const totalViews = listings.reduce((sum, listing) => sum + listing.views, 0);
-  const mostViewed = useMemo(() => [...listings].sort((a, b) => b.views - a.views)[0], [listings]);
-  const mostWhatsapp = useMemo(() => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks)[0], [listings]);
-  const topWhatsappListings = useMemo(() => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks).slice(0, 4), [listings]);
+  const activeCount = listingDashboard?.activeListings ?? 0;
+  const totalWhatsapp = listingDashboard?.totalWhatsappClicks ?? 0;
+  const totalViews = listingDashboard?.totalViews ?? 0;
+  const mostViewed = listingDashboard?.mostViewedListing;
+  const mostWhatsapp = listingDashboard?.mostContactedListing;
+  const topWhatsappListings = listingDashboard?.topContactedListings ?? [];
   const whatsappPreviewListing = mostViewed ?? listings[0];
   const whatsappTemplate = lang === "ar" ? settings.whatsappMessageAr : settings.whatsappMessageEn;
   const whatsappPreview = whatsappPreviewListing
@@ -251,7 +252,7 @@ export function DashboardPage() {
         {dashboardView === "overview" ? (
           <>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Stat icon={FiLayers} label={t.totalListings} value={listings.length} />
+              <Stat icon={FiLayers} label={t.totalListings} value={listingDashboard?.totalListings ?? 0} />
               <Stat icon={FiEye} label={t.activeListings} value={activeCount} />
               <Stat icon={FiBarChart2} label={t.totalViews} value={totalViews} />
               <Stat icon={FaWhatsapp} label={t.whatsappClicks} value={totalWhatsapp} />
@@ -594,11 +595,28 @@ function validateMediaFile(file: File, role: ListingMediaRole) {
   return "";
 }
 
+type ListingInitialMedia = {
+  thumbnail?: File;
+  gallery: File[];
+};
+
+function selectedPendingMedia(file: File, role: ListingMediaRole): PendingMedia {
+  return {
+    key: mediaKey(file, role),
+    file,
+    role,
+    status: "selected",
+    progress: 0,
+    previewUrl: URL.createObjectURL(file),
+  };
+}
+
 function ListingForm({
   title,
   submitLabel,
   initial = listingToDraft(),
   listing,
+  initialMedia,
   onSubmit,
   onFinished,
 }: {
@@ -606,13 +624,17 @@ function ListingForm({
   submitLabel: string;
   initial?: ListingDraft;
   listing?: Listing;
+  initialMedia?: ListingInitialMedia;
   onSubmit: (draft: ListingDraft, media?: ListingSubmissionMedia) => Promise<Listing>;
   onFinished: () => void;
 }) {
   const { lang, t, sectors, uploadListingMedia, watchListingMedia, deleteListingMedia } = useApp();
   const [draft, setDraft] = useState<ListingDraft>(initial);
   const [saving, setSaving] = useState(false);
-  const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>(() => [
+    ...(initialMedia?.thumbnail ? [selectedPendingMedia(initialMedia.thumbnail, "thumbnail")] : []),
+    ...(initialMedia?.gallery ?? []).map((image) => selectedPendingMedia(image, "gallery")),
+  ]);
   const [savedListing, setSavedListing] = useState<Listing | null>(null);
   const [deletingMediaId, setDeletingMediaId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -849,14 +871,7 @@ function ListingForm({
       setError(role === "thumbnail" ? "احذف صورة الغلاف الحالية قبل اختيار بديل." : "احذف الفيديو الحالي قبل اختيار بديل.");
       return;
     }
-    const entries = relevant.map((file): PendingMedia => ({
-      key: mediaKey(file, role),
-      file,
-      role,
-      status: "selected",
-      progress: 0,
-      previewUrl: URL.createObjectURL(file),
-    }));
+    const entries = relevant.map((file) => selectedPendingMedia(file, role));
     setError("");
     setPendingMedia((current) => {
       if (role === "gallery") {
@@ -1259,7 +1274,7 @@ type ImportField =
   | "announcementSourceAr" | "announcementSourceEn" | "notesAr" | "notesEn"
   | "mapUrl" | "whatsappPhone" | "seoTitleAr" | "seoTitleEn"
   | "seoDescriptionAr" | "seoDescriptionEn" | "seoKeywordsAr" | "seoKeywordsEn"
-  | "seoSlug" | "featured";
+  | "seoSlug" | "featured" | "specifications" | "thumbnailImage" | "galleryImages";
 
 type ImportFieldDefinition = {
   key: ImportField;
@@ -1307,11 +1322,17 @@ const importFieldDefinitions: ImportFieldDefinition[] = [
   { key: "seoKeywordsEn", ar: "كلمات SEO بالإنجليزية", en: "English SEO keywords", aliases: ["كلمات seo انجليزي", "seo keywords en", "seo keywords"] },
   { key: "seoSlug", ar: "رابط الإعلان", en: "SEO slug", aliases: ["الرابط", "slug", "seo slug"] },
   { key: "featured", ar: "إعلان مميز", en: "Featured", aliases: ["مميز", "featured"] },
+  { key: "specifications", ar: "المواصفات (JSON)", en: "Specifications (JSON)", aliases: ["المواصفات", "المواصفات json", "specifications", "specifications json", "specs"] },
+  { key: "thumbnailImage", ar: "الصورة الرئيسية المدمجة", en: "Embedded thumbnail", aliases: ["الصورة الرئيسية", "صورة رئيسية", "main thumbnail", "thumbnail"], primary: true },
+  { key: "galleryImages", ar: "صور الجاليري المدمجة", en: "Embedded gallery images", aliases: ["صور الجاليري", "صور اضافية", "gallery images", "gallery"], primary: true },
 ];
+
+type ImportedListingMedia = ListingInitialMedia;
 
 type ImportQueueItem = {
   rowNumber: number;
   draft: ListingDraft;
+  media: ImportedListingMedia;
   missing: string[];
   published: boolean;
 };
@@ -1378,6 +1399,28 @@ function importedDate(value: string) {
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
 
+function importedSpecifications(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, 20).flatMap((entry) => {
+      if (!entry || typeof entry !== "object") return [];
+      const candidate = entry as { label?: { ar?: unknown; en?: unknown }; value?: { ar?: unknown; en?: unknown } };
+      const labelAr = typeof candidate.label?.ar === "string" ? candidate.label.ar.trim() : "";
+      const labelEn = typeof candidate.label?.en === "string" ? candidate.label.en.trim() : "";
+      const valueAr = typeof candidate.value?.ar === "string" ? candidate.value.ar.trim() : "";
+      const valueEn = typeof candidate.value?.en === "string" ? candidate.value.en.trim() : "";
+      if ((!labelAr && !labelEn) || (!valueAr && !valueEn)) return [];
+      return [{
+        label: { ar: labelAr || labelEn, en: labelEn || labelAr },
+        value: { ar: valueAr || valueEn, en: valueEn || valueAr },
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 function draftFromImportedRow(
   row: WorkbookPreviewResponse["rows"][number],
   mapping: Partial<Record<ImportField, string>>,
@@ -1386,11 +1429,13 @@ function draftFromImportedRow(
   const draft = listingToDraft();
   const target = draft as unknown as Record<string, unknown>;
   for (const definition of importFieldDefinitions) {
+    if (definition.key === "thumbnailImage" || definition.key === "galleryImages") continue;
     const column = mapping[definition.key];
     const value = column ? row.values[column]?.trim() ?? "" : "";
     if (!value) continue;
     if (definition.key === "category") target.category = importedCategory(value, sectors);
     else if (definition.key === "status") target.status = importedStatus(value);
+    else if (definition.key === "specifications") target.specs = importedSpecifications(value);
     else if (["publishDate", "expireDate", "auctionDate"].includes(definition.key)) target[definition.key] = importedDate(value);
     else if (definition.key === "featured") target.featured = /^(1|true|yes|نعم|مميز)$/i.test(value);
     else target[definition.key] = value;
@@ -1398,7 +1443,33 @@ function draftFromImportedRow(
   return draft;
 }
 
-function importedDraftMissing(draft: ListingDraft, lang: "ar" | "en") {
+function fileFromEmbeddedImage(image: WorkbookPreviewResponse["rows"][number]["images"][number]) {
+  const binary = window.atob(image.dataBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return new File([bytes], image.fileName, { type: image.contentType, lastModified: 0 });
+}
+
+function importedMediaFromRow(
+  row: WorkbookPreviewResponse["rows"][number],
+  mapping: Partial<Record<ImportField, string>>,
+): ImportedListingMedia {
+  const images = Array.isArray(row.images) ? row.images : [];
+  const thumbnailColumn = mapping.thumbnailImage;
+  const galleryColumn = mapping.galleryImages;
+  const thumbnailImage = thumbnailColumn
+    ? images.find((image) => image.columnKey === thumbnailColumn)
+    : undefined;
+  const galleryImages = galleryColumn
+    ? images.filter((image) => image.columnKey === galleryColumn).slice(0, 20)
+    : [];
+  return {
+    thumbnail: thumbnailImage ? fileFromEmbeddedImage(thumbnailImage) : undefined,
+    gallery: galleryImages.map(fileFromEmbeddedImage),
+  };
+}
+
+function importedDraftMissing(draft: ListingDraft, lang: "ar" | "en", hasThumbnail: boolean) {
   const fields: Array<[string, string, string]> = [
     [draft.titleAr, "العنوان العربي", "Arabic title"],
     [draft.titleEn, "العنوان الإنجليزي", "English title"],
@@ -1419,7 +1490,7 @@ function importedDraftMissing(draft: ListingDraft, lang: "ar" | "en") {
   ];
   return [
     ...(fields.filter(([value]) => !value.trim()).map(([, ar, en]) => lang === "ar" ? ar : en)),
-    lang === "ar" ? "الصورة الرئيسية" : "Main thumbnail",
+    ...(!hasThumbnail ? [lang === "ar" ? "الصورة الرئيسية" : "Main thumbnail"] : []),
   ];
 }
 
@@ -1473,7 +1544,8 @@ function ListingImportWizard() {
     }
     const nextItems = preview.rows.map((row) => {
       const draft = draftFromImportedRow(row, mapping, sectors);
-      return { rowNumber: row.rowNumber, draft, missing: importedDraftMissing(draft, lang), published: false };
+      const media = importedMediaFromRow(row, mapping);
+      return { rowNumber: row.rowNumber, draft, media, missing: importedDraftMissing(draft, lang, Boolean(media.thumbnail)), published: false };
     });
     setItems(nextItems);
     setActiveIndex(nextItems.length ? 0 : null);
@@ -1492,14 +1564,18 @@ function ListingImportWizard() {
 
   return (
     <div className="grid gap-6">
-      <Panel title={lang === "ar" ? "استيراد الإعلانات من Excel" : "Import listings from Excel"} icon={FiFile}>
+      <Panel
+        title={lang === "ar" ? "استيراد الإعلانات من Excel" : "Import listings from Excel"}
+        icon={FiFile}
+        action={<a href="/templates/listing-import-example.xlsx" download className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-amber-400 px-5 text-sm font-black text-slate-950"><FiFile />{lang === "ar" ? "تحميل ملف مثال" : "Download example"}</a>}
+      >
         <div className="grid gap-5">
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
             <h3 className="text-lg font-black text-amber-950">{lang === "ar" ? "العملية ماشية خطوة بخطوة" : "A guided import process"}</h3>
             <p className="mt-2 text-sm font-bold leading-7 text-amber-900/75">
               {lang === "ar"
-                ? "ارفع الملف، اختار الشيت وصف العناوين، اربط الأعمدة، وبعدها هنفتح كل إعلان في نموذج النشر علشان تكمل الصورة الرئيسية والجاليري والـSEO وأي بيانات ناقصة قبل ما ينزل."
-                : "Upload the workbook, choose the sheet and header row, map columns, then complete each listing's thumbnail, gallery, SEO, and missing fields before publishing."}
+                ? "ارفع الملف، اختار الشيت وصف العناوين، واربط الأعمدة. الصور المدمجة تحت عمود الصورة الرئيسية أو الجاليري هتتحول تلقائيًا لملفات رفع، وبعدها هنفتح كل إعلان علشان تكمل أي بيانات أو صور ناقصة قبل النشر."
+                : "Upload the workbook, choose the sheet and header row, and map columns. Images embedded under the thumbnail or gallery columns become upload files automatically, then each listing opens so you can complete anything missing before publishing."}
             </p>
           </div>
 
@@ -1539,7 +1615,7 @@ function ListingImportWizard() {
               </div>
 
               <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white p-4">
-                <table className="min-w-full text-sm"><thead><tr>{preview.columns.slice(0, 6).map((column) => <th key={column.key} className="whitespace-nowrap border-b p-3 text-start font-black text-slate-700">{column.header}</th>)}</tr></thead><tbody>{preview.rows.slice(0, 4).map((row) => <tr key={row.rowNumber}>{preview.columns.slice(0, 6).map((column) => <td key={column.key} className="max-w-56 truncate border-b p-3 font-semibold text-slate-500">{row.values[column.key] || "—"}</td>)}</tr>)}</tbody></table>
+                <table className="min-w-full text-sm"><thead><tr>{preview.columns.slice(0, 6).map((column) => <th key={column.key} className="whitespace-nowrap border-b p-3 text-start font-black text-slate-700">{column.header}</th>)}<th className="whitespace-nowrap border-b p-3 text-start font-black text-slate-700">{lang === "ar" ? "الصور المدمجة" : "Embedded images"}</th></tr></thead><tbody>{preview.rows.slice(0, 4).map((row) => <tr key={row.rowNumber}>{preview.columns.slice(0, 6).map((column) => <td key={column.key} className="max-w-56 truncate border-b p-3 font-semibold text-slate-500">{row.values[column.key] || "—"}</td>)}<td className="border-b p-3 font-black text-amber-700">{row.images?.length || "—"}</td></tr>)}</tbody></table>
               </div>
 
               <Button icon={FiCheckCircle} onClick={prepareQueue}>{lang === "ar" ? "تجهيز قائمة الإعلانات ومراجعة النواقص" : "Prepare listings and review missing fields"}</Button>
@@ -1552,7 +1628,7 @@ function ListingImportWizard() {
         <Panel title={lang === "ar" ? "طابور المراجعة والنشر" : "Review and publishing queue"} icon={FiLayers}>
           <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl bg-slate-950 p-4 text-white"><strong>{publishedCount}/{items.length} {lang === "ar" ? "تم نشرهم" : "published"}</strong><div className="h-2 w-40 overflow-hidden rounded-full bg-white/15"><span className="block h-full bg-amber-400 transition-all" style={{ width: `${items.length ? (publishedCount / items.length) * 100 : 0}%` }} /></div></div>
           <div className="grid gap-3 md:grid-cols-2">
-            {items.map((item, index) => <button key={item.rowNumber} type="button" onClick={() => !item.published && setActiveIndex(index)} className={`rounded-2xl border p-4 text-start transition ${item.published ? "border-emerald-200 bg-emerald-50" : activeIndex === index ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white hover:border-amber-300"}`}><span className="flex items-center justify-between gap-3"><strong className="line-clamp-1 text-sm font-black">{item.draft.titleAr || item.draft.titleEn || `${lang === "ar" ? "صف" : "Row"} ${item.rowNumber}`}</strong>{item.published ? <FiCheckCircle className="text-emerald-700" /> : <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black text-white">{item.missing.length}</span>}</span>{!item.published ? <small className="mt-2 line-clamp-2 block font-bold leading-6 text-slate-500">{item.missing.join(" · ")}</small> : <small className="mt-2 block font-bold text-emerald-700">{lang === "ar" ? "تم الحفظ والنشر" : "Saved and published"}</small>}</button>)}
+            {items.map((item, index) => <button key={item.rowNumber} type="button" onClick={() => !item.published && setActiveIndex(index)} className={`rounded-2xl border p-4 text-start transition ${item.published ? "border-emerald-200 bg-emerald-50" : activeIndex === index ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white hover:border-amber-300"}`}><span className="flex items-center justify-between gap-3"><strong className="line-clamp-1 text-sm font-black">{item.draft.titleAr || item.draft.titleEn || `${lang === "ar" ? "صف" : "Row"} ${item.rowNumber}`}</strong>{item.published ? <FiCheckCircle className="text-emerald-700" /> : <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-black text-white">{item.missing.length}</span>}</span>{!item.published ? <><small className="mt-2 line-clamp-2 block font-bold leading-6 text-slate-500">{item.missing.length ? item.missing.join(" · ") : (lang === "ar" ? "كل البيانات الأساسية والصورة الرئيسية جاهزة" : "Required data and thumbnail are ready")}</small><small className="mt-1 block font-black text-amber-700">{Number(Boolean(item.media.thumbnail)) + item.media.gallery.length} {lang === "ar" ? "صورة جاهزة للرفع" : "images ready to upload"}</small></> : <small className="mt-2 block font-bold text-emerald-700">{lang === "ar" ? "تم الحفظ والنشر" : "Saved and published"}</small>}</button>)}
           </div>
         </Panel>
       ) : null}
@@ -1560,7 +1636,7 @@ function ListingImportWizard() {
       {active ? (
         <div className="grid gap-3">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-black text-amber-900">{lang === "ar" ? `دلوقتي بتراجع صف ${active.rowNumber}. كمّل الحقول الناقصة والصورة الرئيسية، ثم انشر علشان ننتقل تلقائيًا للي بعده.` : `You are reviewing row ${active.rowNumber}. Complete missing fields and the thumbnail, then publish to continue automatically.`}</div>
-          <ListingForm key={`import-${active.rowNumber}`} title={lang === "ar" ? `مراجعة صف ${active.rowNumber}` : `Review row ${active.rowNumber}`} submitLabel={lang === "ar" ? "نشر والانتقال للتالي" : "Publish and continue"} initial={active.draft} onSubmit={addListing} onFinished={finishCurrent} />
+          <ListingForm key={`import-${active.rowNumber}`} title={lang === "ar" ? `مراجعة صف ${active.rowNumber}` : `Review row ${active.rowNumber}`} submitLabel={lang === "ar" ? "نشر والانتقال للتالي" : "Publish and continue"} initial={active.draft} initialMedia={active.media} onSubmit={addListing} onFinished={finishCurrent} />
         </div>
       ) : items.length && publishedCount === items.length ? (
         <div className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-8 text-center"><FiCheckCircle className="mx-auto text-5xl text-emerald-700" /><h2 className="mt-4 text-2xl font-black text-emerald-950">{lang === "ar" ? "كل صفوف الشيت اتراجعت واتنشرت" : "Every worksheet row was reviewed and published"}</h2></div>

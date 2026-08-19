@@ -31,14 +31,16 @@ export function GlobalSearch() {
       return;
     }
     const currentRequest = ++requestId.current;
+    const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       setLoading(true);
       setError("");
-      void searchListings({ q: term, size: 8, sort: "createdAt,desc" })
-        .then((items) => {
-          if (requestId.current === currentRequest) setResults(items);
+      void searchListings({ q: term, size: 8, sort: "relevance,desc" }, controller.signal)
+        .then((response) => {
+          if (requestId.current === currentRequest) setResults(response.content);
         })
         .catch((caught) => {
+          if (caught instanceof Error && caught.name === "AbortError") return;
           if (requestId.current === currentRequest) {
             setError(caught instanceof Error ? caught.message : (lang === "ar" ? "تعذر البحث." : "Search failed."));
           }
@@ -47,7 +49,10 @@ export function GlobalSearch() {
           if (requestId.current === currentRequest) setLoading(false);
         });
     }, 280);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [lang, open, query, searchListings]);
 
   useEffect(() => {

@@ -21,6 +21,8 @@ import { readPublicContentCache, updatePublicContentCache } from "../lib/publicC
 import {
   elHabashyApi,
   type ListingQuery,
+  type ListingDashboardResponse,
+  type PublicListingInsightsResponse,
   type ListingResponse,
   type ListingSubmissionMedia,
   type SectorResponse,
@@ -32,6 +34,7 @@ import {
   type UpsertCertificateBody,
   type UpsertWorkCategoryBody,
   type UpsertWorkEntryBody,
+  type PageResponse,
 } from "../lib/elHabashyApi";
 import type {
   AboutContent,
@@ -71,6 +74,9 @@ type AppContextValue = {
   adminListings: Listing[];
   adminListingsLoading: boolean;
   adminListingsError: string;
+  listingDashboard?: ListingDashboardData;
+  listingInsights?: ListingInsightsData;
+  listingCities: LocalizedText[];
   subscribers: typeof initialSubscribers;
   settings: AppSettings;
   aboutContent: AboutContent;
@@ -99,7 +105,7 @@ type AppContextValue = {
   selectListing: (id: number) => void;
   getWhatsAppUrl: (listing: Listing, phone?: string) => string;
   trackWhatsApp: (id: number) => void;
-  searchListings: (query: ListingQuery) => Promise<Listing[]>;
+  searchListings: (query: ListingQuery, signal?: AbortSignal) => Promise<PageResponse<Listing>>;
   toggleFavorite: (id: number) => void;
   reloadContent: () => Promise<void>;
   reloadAdminListings: () => Promise<void>;
@@ -146,6 +152,25 @@ type AppContextValue = {
   deleteService: (id: number) => Promise<void>;
   uploadServiceImage: (file: File) => Promise<string>;
   setToast: (message: string) => void;
+};
+
+type ListingDashboardData = {
+  totalListings: number;
+  activeListings: number;
+  totalViews: number;
+  totalWhatsappClicks: number;
+  mostViewedListing?: Listing;
+  mostContactedListing?: Listing;
+  topContactedListings: Listing[];
+};
+
+type ListingInsightsData = {
+  totalListings: number;
+  activeListings: number;
+  totalViews: number;
+  totalWhatsappClicks: number;
+  mostViewedListing?: Listing;
+  topContactedListings: Listing[];
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -319,6 +344,35 @@ function listingFromResponse(response: ListingResponse): Listing {
   });
 }
 
+function dashboardFromResponse(response: ListingDashboardResponse): ListingDashboardData {
+  return {
+    totalListings: response.totalListings,
+    activeListings: response.activeListings,
+    totalViews: response.totalViews,
+    totalWhatsappClicks: response.totalWhatsappClicks,
+    mostViewedListing: response.mostViewedListing
+      ? listingFromResponse(response.mostViewedListing)
+      : undefined,
+    mostContactedListing: response.mostContactedListing
+      ? listingFromResponse(response.mostContactedListing)
+      : undefined,
+    topContactedListings: response.topContactedListings.map(listingFromResponse),
+  };
+}
+
+function insightsFromResponse(response: PublicListingInsightsResponse): ListingInsightsData {
+  return {
+    totalListings: response.totalListings,
+    activeListings: response.activeListings,
+    totalViews: response.totalViews,
+    totalWhatsappClicks: response.totalWhatsappClicks,
+    mostViewedListing: response.mostViewedListing
+      ? listingFromResponse(response.mostViewedListing)
+      : undefined,
+    topContactedListings: response.topContactedListings.map(listingFromResponse),
+  };
+}
+
 function sectorFromResponse(response: SectorResponse): Sector | null {
   if (!categoryIds.includes(response.code as ListingCategory)) return null;
   return normalizeSector({
@@ -482,6 +536,9 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [adminListings, setAdminListings] = useState<Listing[]>([]);
   const [adminListingsLoading, setAdminListingsLoading] = useState(false);
   const [adminListingsError, setAdminListingsError] = useState("");
+  const [listingDashboard, setListingDashboard] = useState<ListingDashboardData>();
+  const [listingInsights, setListingInsights] = useState<ListingInsightsData>();
+  const [listingCities, setListingCities] = useState<LocalizedText[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() =>
     normalizeSettings(cachedPublicContent.settings ?? initialSettings));
   const [aboutContent, setAboutContent] = useState<AboutContent>(() =>
@@ -508,8 +565,20 @@ export function AppProvider({ children }: PropsWithChildren) {
   const aboutRefreshStarted = useRef(false);
 
   const t = copy[lang];
+  const dashboardListings = useMemo(() => listingDashboard
+    ? [
+        listingDashboard.mostViewedListing,
+        listingDashboard.mostContactedListing,
+        ...listingDashboard.topContactedListings,
+      ].filter((listing): listing is Listing => Boolean(listing))
+    : [], [listingDashboard]);
+  const insightListings = useMemo(() => listingInsights
+    ? [listingInsights.mostViewedListing, ...listingInsights.topContactedListings]
+        .filter((listing): listing is Listing => Boolean(listing))
+    : [], [listingInsights]);
   const selectedListing =
-    [...adminListings, ...listings].find((listing) => listing.id === selectedListingId)
+    [...adminListings, ...dashboardListings, ...insightListings, ...listings]
+      .find((listing) => listing.id === selectedListingId)
     ?? (selectedListingDetail?.id === selectedListingId ? selectedListingDetail : undefined)
     ?? listings[0];
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? services[0];
@@ -528,18 +597,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       const first = await elHabashyApi.public.listings({ page: 0, size: 24, sort: "createdAt,desc" });
       const firstListings = first.content.map(listingFromResponse);
       commitPublicListings(firstListings);
-      setListingsLoading(false);
-
-      const remaining = first.totalPages > 1
-        ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
-            elHabashyApi.public.listings({ page: index + 1, size: 24, sort: "createdAt,desc" })))
-        : [];
-      if (remaining.length) {
-        commitPublicListings([
-          ...firstListings,
-          ...remaining.flatMap((pageResponse) => pageResponse.content).map(listingFromResponse),
-        ]);
-      }
     } catch (error) {
       if (!listingsRef.current.length) {
         setListingsError(error instanceof Error ? error.message : "تعذر تحميل الإعلانات.");
@@ -548,6 +605,24 @@ export function AppProvider({ children }: PropsWithChildren) {
       setListingsLoading(false);
     }
   }, [commitPublicListings]);
+
+  const loadListingCities = useCallback(async () => {
+    try {
+      const response = await elHabashyApi.public.listingCities();
+      setListingCities(response.map(normalizeText));
+    } catch {
+      setListingCities([]);
+    }
+  }, []);
+
+  const loadListingInsights = useCallback(async () => {
+    try {
+      const response = await elHabashyApi.public.listingInsights();
+      setListingInsights(insightsFromResponse(response));
+    } catch {
+      setListingInsights(undefined);
+    }
+  }, []);
 
   const loadSectors = useCallback(async () => {
     setSectorsLoading(sectorsRef.current.length === 0);
@@ -614,8 +689,28 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [authorizedRequest, cachedPublicContent.about, currentUser?.role]);
 
   const reloadContent = useCallback(async () => {
-    await Promise.all([loadPublicListings(), loadSectors(), loadPublicSettings(), reloadServices()]);
-  }, [loadPublicListings, loadPublicSettings, loadSectors, reloadServices]);
+    await Promise.all([
+      loadPublicListings(),
+      loadListingCities(),
+      loadListingInsights(),
+      loadSectors(),
+      loadPublicSettings(),
+      reloadServices(),
+    ]);
+  }, [loadListingCities, loadListingInsights, loadPublicListings, loadPublicSettings, loadSectors, reloadServices]);
+
+  const reloadAdminDashboard = useCallback(async () => {
+    if (currentUser?.role !== "ADMIN") {
+      setListingDashboard(undefined);
+      return;
+    }
+    try {
+      const response = await elHabashyApi.admin.content.listingDashboard(authorizedRequest);
+      setListingDashboard(dashboardFromResponse(response));
+    } catch (error) {
+      setAdminListingsError(error instanceof Error ? error.message : "تعذر تحميل إحصائيات لوحة التحكم.");
+    }
+  }, [authorizedRequest, currentUser?.role]);
 
   const reloadAdminListings = useCallback(async () => {
     if (currentUser?.role !== "ADMIN") {
@@ -625,22 +720,36 @@ export function AppProvider({ children }: PropsWithChildren) {
     setAdminListingsLoading(true);
     setAdminListingsError("");
     try {
-      const first = await elHabashyApi.admin.content.listings(authorizedRequest, {
-        page: 0,
-        size: 100,
-        sort: "createdAt,desc",
-      });
-      const remaining = first.totalPages > 1
-        ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) =>
-            elHabashyApi.admin.content.listings(authorizedRequest, { page: index + 1, size: 100, sort: "createdAt,desc" })))
-        : [];
-      setAdminListings([first, ...remaining].flatMap((pageResponse) => pageResponse.content).map(listingFromResponse));
+      const [first] = await Promise.all([
+        elHabashyApi.admin.content.listings(authorizedRequest, {
+          page: 0,
+          size: 100,
+          sort: "createdAt,desc",
+        }),
+        reloadAdminDashboard(),
+      ]);
+      setAdminListings(first.content.map(listingFromResponse));
     } catch (error) {
       setAdminListingsError(error instanceof Error ? error.message : "تعذر تحميل إعلانات لوحة التحكم.");
     } finally {
       setAdminListingsLoading(false);
     }
-  }, [authorizedRequest, currentUser?.role]);
+  }, [authorizedRequest, currentUser?.role, reloadAdminDashboard]);
+
+  const searchListings = useCallback(async (query: ListingQuery, signal?: AbortSignal) => {
+    const response = await elHabashyApi.public.listings(
+      {
+        ...query,
+        page: query.page ?? 0,
+        size: query.size ?? 12,
+      },
+      { signal },
+    );
+    return {
+      ...response,
+      content: response.content.map(listingFromResponse),
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -682,6 +791,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       adminListings,
       adminListingsLoading,
       adminListingsError,
+      listingDashboard,
+      listingInsights,
+      listingCities,
       subscribers: initialSubscribers,
       settings,
       aboutContent,
@@ -725,7 +837,10 @@ export function AppProvider({ children }: PropsWithChildren) {
       selectListing(id) {
         const requestId = ++listingDetailRequest.current;
         const publicListing = listings.find((listing) => listing.id === id);
-        const candidate = publicListing ?? adminListings.find((listing) => listing.id === id);
+        const candidate = publicListing
+          ?? adminListings.find((listing) => listing.id === id)
+          ?? dashboardListings.find((listing) => listing.id === id)
+          ?? insightListings.find((listing) => listing.id === id);
         setSelectedListingId(id);
         setSelectedListingDetail(candidate);
         setListingDetailError("");
@@ -768,6 +883,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       trackWhatsApp(id) {
         const listing = listings.find((item) => item.id === id)
           ?? adminListings.find((item) => item.id === id)
+          ?? dashboardListings.find((item) => item.id === id)
+          ?? insightListings.find((item) => item.id === id)
           ?? (selectedListingDetail?.id === id ? selectedListingDetail : undefined);
         if (!listing) return;
 
@@ -785,24 +902,12 @@ export function AppProvider({ children }: PropsWithChildren) {
           setListings((current) => current.map(reconcile));
           setFeaturedListings((current) => current.map(reconcile));
           setSelectedListingDetail((current) => current?.id === id ? reconcile(current) : current);
+          void loadListingInsights();
         }).catch(() => {
           // Opening WhatsApp must never be blocked by an analytics failure.
         });
       },
-      async searchListings(query) {
-        const response = await elHabashyApi.public.listings({
-          ...query,
-          page: query.page ?? 0,
-          size: query.size ?? 100,
-        });
-        const results = response.content.map(listingFromResponse);
-        setListings((current) => {
-          const merged = new Map(current.map((listing) => [listing.id, listing]));
-          results.forEach((listing) => merged.set(listing.id, listing));
-          return [...merged.values()];
-        });
-        return results;
-      },
+      searchListings,
       toggleFavorite(id) {
         if (!currentUser) {
           setToast(t.favoriteLoginRequired);
@@ -823,7 +928,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const nextListing = listingFromResponse(response);
         setAdminListings((current) => [nextListing, ...current.filter((listing) => listing.id !== nextListing.id)]);
         setSelectedListingId(nextListing.id);
-        await reloadContent();
+        await Promise.all([reloadContent(), reloadAdminDashboard()]);
         setToast(t.success);
         return nextListing;
       },
@@ -833,7 +938,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const updated = listingFromResponse(response);
         setAdminListings((items) => items.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await reloadContent();
+        await Promise.all([reloadContent(), reloadAdminDashboard()]);
         setToast(t.success);
         return updated;
       },
@@ -841,7 +946,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         await elHabashyApi.admin.content.deleteListing(authorizedRequest, id);
         setAdminListings((current) => current.filter((listing) => listing.id !== id));
         setSelectedListingDetail((detail) => detail?.id === id ? undefined : detail);
-        await reloadContent();
+        await Promise.all([reloadContent(), reloadAdminDashboard()]);
         setToast(t.success);
       },
       async updateListingStatus(id, status) {
@@ -849,7 +954,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         const updated = listingFromResponse(response);
         setAdminListings((current) => current.map((listing) => listing.id === id ? updated : listing));
         setSelectedListingDetail((detail) => detail?.id === id ? updated : detail);
-        await reloadContent();
+        await Promise.all([reloadContent(), reloadAdminDashboard()]);
         setToast(t.success);
         return updated;
       },
@@ -1039,6 +1144,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       adminListings,
       adminListingsError,
       adminListingsLoading,
+      listingDashboard,
+      listingInsights,
+      listingCities,
       authorizedRequest,
       currentUser,
       aboutContent,
@@ -1046,6 +1154,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       aboutError,
       aboutSection,
       dashboardView,
+      dashboardListings,
+      insightListings,
       lang,
       listingCategoryFilter,
       listingDetailError,
@@ -1054,14 +1164,17 @@ export function AppProvider({ children }: PropsWithChildren) {
       featuredListings,
       listingsError,
       listingsLoading,
+      loadListingInsights,
       mobileOpen,
       page,
       reloadAdminListings,
+      reloadAdminDashboard,
       reloadAboutContent,
       reloadContent,
       reloadServices,
       selectedListing,
       selectedListingDetail,
+      searchListings,
       settings,
       sectors,
       sectorsError,

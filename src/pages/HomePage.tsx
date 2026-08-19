@@ -38,6 +38,7 @@ export function HomePage() {
     featuredListings,
     listingsLoading,
     listingsError,
+    listingInsights,
     sectors,
     sectorsError,
     services,
@@ -54,10 +55,11 @@ export function HomePage() {
     () => [...listings].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5),
     [listings],
   );
-  const contacted = useMemo(
+  const localContacted = useMemo(
     () => [...listings].sort((a, b) => b.whatsappClicks - a.whatsappClicks).slice(0, 5),
     [listings],
   );
+  const contacted = listingInsights?.topContactedListings ?? localContacted;
   const slides = featured.length ? featured : latest;
   const active = slides[slide % slides.length] ?? listings[0];
   const ArrowIcon = lang === "ar" ? FiArrowLeft : FiArrowRight;
@@ -127,9 +129,9 @@ export function HomePage() {
             </div>
 
             <div className="mt-10 grid grid-cols-3 gap-3">
-              <HeroMetric value={listings.length} label={t.totalListings} />
-              <HeroMetric value={listings.filter((listing) => listing.status === "active").length} label={t.activeListings} />
-              <HeroMetric value={listings.reduce((sum, listing) => sum + listing.whatsappClicks, 0)} label={t.whatsappClicks} />
+              <HeroMetric value={listingInsights?.totalListings ?? listings.length} label={t.totalListings} />
+              <HeroMetric value={listingInsights?.activeListings ?? listings.filter((listing) => listing.status === "active").length} label={t.activeListings} />
+              <HeroMetric value={listingInsights?.totalWhatsappClicks ?? listings.reduce((sum, listing) => sum + listing.whatsappClicks, 0)} label={t.whatsappClicks} />
             </div>
           </div>
 

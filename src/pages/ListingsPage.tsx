@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { FiGrid, FiList, FiLoader, FiSearch, FiSliders } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiGrid, FiList, FiLoader, FiSearch, FiSliders } from "react-icons/fi";
 import { statusLabel } from "../lib/i18n";
 import { getSectorTitle } from "../lib/sectors";
 import { useApp } from "../context/AppContext";
@@ -8,6 +8,7 @@ import { LazyImage } from "../components/LazyImage";
 import { ListingCard } from "../components/ListingCard";
 import { WhatsAppButton } from "../components/WhatsAppButton";
 import type { Listing, ListingCategory, ListingStatus } from "../types";
+import type { PageResponse } from "../lib/elHabashyApi";
 
 type SortMode = "latest" | "views" | "whatsapp";
 
@@ -15,10 +16,7 @@ export function ListingsPage() {
   const {
     lang,
     t,
-    listings,
-    listingsLoading,
-    listingsError,
-    reloadContent,
+    listingCities,
     sectors,
     listingCategoryFilter,
     setListingCategoryFilter,
@@ -31,7 +29,8 @@ export function ListingsPage() {
   const [city, setCity] = useState("all");
   const [sort, setSort] = useState<SortMode>("latest");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
-  const [searchResults, setSearchResults] = useState<Listing[] | null>(null);
+  const [resultPage, setResultPage] = useState<PageResponse<Listing> | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchRetry, setSearchRetry] = useState(0);
@@ -42,63 +41,51 @@ export function ListingsPage() {
 
   useEffect(() => {
     const term = search.trim();
-    if (!term) {
-      setSearchResults(null);
+    if (term.length === 1) {
+      setResultPage(null);
       setSearchLoading(false);
       setSearchError("");
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setSearchLoading(true);
     setSearchError("");
     const timeout = window.setTimeout(() => {
       void searchListings({
-        q: term,
+        q: term || undefined,
         category: category === "all" ? undefined : category,
         status: status === "all" ? undefined : status,
+        city: city === "all" ? undefined : city,
+        page: pageIndex,
+        size: 12,
         sort: sort === "views"
           ? "views,desc"
           : sort === "whatsapp"
             ? "whatsappClicks,desc"
             : "createdAt,desc",
-      })
-        .then((rows) => {
-          if (!cancelled) setSearchResults(rows);
+      }, controller.signal)
+        .then((response) => {
+          setResultPage(response);
         })
         .catch((caught) => {
-          if (!cancelled) {
-            setSearchResults([]);
-            setSearchError(caught instanceof Error ? caught.message : (lang === "ar" ? "تعذر تنفيذ البحث." : "Search failed."));
-          }
+          if (caught instanceof Error && caught.name === "AbortError") return;
+          setResultPage(null);
+          setSearchError(caught instanceof Error ? caught.message : (lang === "ar" ? "تعذر تنفيذ البحث." : "Search failed."));
         })
         .finally(() => {
-          if (!cancelled) setSearchLoading(false);
+          if (!controller.signal.aborted) setSearchLoading(false);
         });
-    }, 350);
+    }, term ? 350 : 0);
 
     return () => {
-      cancelled = true;
       window.clearTimeout(timeout);
+      controller.abort();
     };
-  }, [category, lang, search, searchListings, searchRetry, sort, status]);
+  }, [category, city, lang, pageIndex, search, searchListings, searchRetry, sort, status]);
 
-  const cities = useMemo(() => Array.from(new Set(listings.map((listing) => listing.city[lang]))), [lang, listings]);
-  const filtered = useMemo(() => {
-    const rows = (searchResults ?? listings).filter((listing) => {
-      return (
-        (category === "all" || listing.category === category) &&
-        (status === "all" || listing.status === status) &&
-        (city === "all" || listing.city[lang] === city)
-      );
-    });
-
-    return rows.sort((a, b) => {
-      if (sort === "views") return b.views - a.views;
-      if (sort === "whatsapp") return b.whatsappClicks - a.whatsappClicks;
-      return b.createdAt.localeCompare(a.createdAt);
-    });
-  }, [category, city, lang, listings, searchResults, sort, status]);
+  const results = resultPage?.content ?? [];
+  const totalResults = resultPage?.totalElements ?? 0;
 
   const reset = () => {
     setSearch("");
@@ -107,7 +94,8 @@ export function ListingsPage() {
     setStatus("all");
     setCity("all");
     setSort("latest");
-    setSearchResults(null);
+    setPageIndex(0);
+    setResultPage(null);
     setSearchError("");
   };
 
@@ -129,7 +117,10 @@ export function ListingsPage() {
               <FiSearch className="absolute start-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPageIndex(0);
+                }}
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-11 text-sm outline-none transition focus:border-amber-400 focus:bg-white"
               />
             </span>
@@ -142,6 +133,7 @@ export function ListingsPage() {
               const next = value as "all" | ListingCategory;
               setCategory(next);
               setListingCategoryFilter(next);
+              setPageIndex(0);
             }}
           >
             <option value="all">{t.allCategories}</option>
@@ -150,21 +142,21 @@ export function ListingsPage() {
             ))}
           </Select>
 
-          <Select label={t.status} value={status} onChange={(value) => setStatus(value as "all" | ListingStatus)}>
+          <Select label={t.status} value={status} onChange={(value) => { setStatus(value as "all" | ListingStatus); setPageIndex(0); }}>
             <option value="all">{t.allStatuses}</option>
             {(Object.keys(statusLabel) as ListingStatus[]).map((item) => (
               <option key={item} value={item}>{statusLabel[item][lang]}</option>
             ))}
           </Select>
 
-          <Select label={t.allCities} value={city} onChange={setCity}>
+          <Select label={t.allCities} value={city} onChange={(value) => { setCity(value); setPageIndex(0); }}>
             <option value="all">{t.allCities}</option>
-            {cities.map((item) => (
-              <option key={item} value={item}>{item}</option>
+            {listingCities.map((item) => (
+              <option key={`${item.ar}-${item.en}`} value={item.en || item.ar}>{item[lang]}</option>
             ))}
           </Select>
 
-          <Select label={lang === "ar" ? "الترتيب" : "Sort"} value={sort} onChange={(value) => setSort(value as SortMode)}>
+          <Select label={lang === "ar" ? "الترتيب" : "Sort"} value={sort} onChange={(value) => { setSort(value as SortMode); setPageIndex(0); }}>
             <option value="latest">{t.sortLatest}</option>
             <option value="views">{t.sortViews}</option>
             <option value="whatsapp">{t.sortWhatsapp}</option>
@@ -184,7 +176,7 @@ export function ListingsPage() {
         <div className="flex flex-col justify-between gap-4 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-950/5 md:flex-row md:items-center">
           <div>
             <span className="text-xs font-black uppercase text-amber-700">{t.listings}</span>
-            <h2 className="mt-1 text-3xl font-black text-slate-950">{filtered.length.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}</h2>
+            <h2 className="mt-1 text-3xl font-black text-slate-950">{totalResults.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}</h2>
           </div>
           <div className="grid grid-cols-2 rounded-full bg-slate-100 p-1">
             <LayoutButton active={layout === "grid"} onClick={() => setLayout("grid")} icon={<FiGrid />} />
@@ -192,24 +184,24 @@ export function ListingsPage() {
           </div>
         </div>
 
-        {listingsLoading || searchLoading ? (
+        {searchLoading ? (
           <div className="grid min-h-80 place-items-center rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <span className="grid gap-3 text-sm font-black text-slate-600"><FiLoader className="mx-auto animate-spin text-3xl text-amber-600" />{searchLoading ? (lang === "ar" ? "جاري البحث في كل العروض..." : "Searching all listings...") : (lang === "ar" ? "جاري تحميل الإعلانات..." : "Loading listings...")}</span>
+            <span className="grid gap-3 text-sm font-black text-slate-600"><FiLoader className="mx-auto animate-spin text-3xl text-amber-600" />{lang === "ar" ? "جاري تحميل النتائج..." : "Loading results..."}</span>
           </div>
-        ) : listingsError || searchError ? (
+        ) : searchError ? (
           <div className="grid min-h-80 place-items-center rounded-[2rem] border border-rose-200 bg-rose-50 p-8 text-center shadow-sm">
-            <div><strong className="block text-lg font-black text-rose-700">{searchError || listingsError}</strong><button type="button" onClick={() => search.trim() ? setSearchRetry((value) => value + 1) : void reloadContent()} className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
+            <div><strong className="block text-lg font-black text-rose-700">{searchError}</strong><button type="button" onClick={() => setSearchRetry((value) => value + 1)} className="mt-4 rounded-full bg-slate-950 px-5 py-3 text-sm font-black text-white">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button></div>
           </div>
-        ) : filtered.length ? (
+        ) : results.length ? (
           layout === "grid" ? (
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((listing) => (
+              {results.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}
             </div>
           ) : (
             <div className="grid gap-4">
-              {filtered.map((listing) => (
+              {results.map((listing) => (
                 <article key={listing.id} className="grid gap-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-950/5 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-center">
                   <LazyImage src={listing.images[0]} alt={listing.title[lang]} className="h-56 w-full rounded-3xl object-cover md:h-44" />
                   <div>
@@ -238,6 +230,20 @@ export function ListingsPage() {
             <strong className="text-xl font-black text-slate-950">{t.noResults}</strong>
           </div>
         )}
+
+        {resultPage && resultPage.totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-3 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <button type="button" disabled={resultPage.first} onClick={() => setPageIndex((value) => Math.max(0, value - 1))} className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 disabled:cursor-not-allowed disabled:opacity-40" aria-label={lang === "ar" ? "الصفحة السابقة" : "Previous page"}>
+              {lang === "ar" ? <FiArrowRight /> : <FiArrowLeft />}
+            </button>
+            <strong className="text-sm font-black text-slate-700">
+              {(resultPage.page + 1).toLocaleString(lang === "ar" ? "ar-EG" : "en-US")} / {resultPage.totalPages.toLocaleString(lang === "ar" ? "ar-EG" : "en-US")}
+            </strong>
+            <button type="button" disabled={resultPage.last} onClick={() => setPageIndex((value) => value + 1)} className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 disabled:cursor-not-allowed disabled:opacity-40" aria-label={lang === "ar" ? "الصفحة التالية" : "Next page"}>
+              {lang === "ar" ? <FiArrowLeft /> : <FiArrowRight />}
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );
