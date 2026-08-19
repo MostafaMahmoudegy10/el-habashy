@@ -431,7 +431,7 @@ function VisualPanel({ mode, isAr }: { mode: "login" | "register"; isAr: boolean
       <div className="absolute inset-0 hidden flex-col p-9 lg:flex xl:p-11">
         <div className="flex items-center justify-between gap-4">
           <Brand inverted />
-          <span className="rounded-full border border-white/25 bg-slate-950/25 px-4 py-2 text-[10px] font-black tracking-[.18em] text-white backdrop-blur-md">SECURE PORTAL</span>
+          <span className="rounded-full border border-white/25 bg-slate-950/25 px-4 py-2 text-[10px] font-black tracking-[.18em] text-white backdrop-blur-md">{isAr ? "بوابة العملاء" : "CLIENT ACCESS"}</span>
         </div>
 
         <AnimatePresence mode="wait" initial={false}>

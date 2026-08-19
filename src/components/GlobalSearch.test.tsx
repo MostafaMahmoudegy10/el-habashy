@@ -38,7 +38,7 @@ describe("GlobalSearch request control", () => {
   it("debounces rapid typing into one ranked API request", async () => {
     render(<GlobalSearch />);
     fireEvent.click(screen.getByRole("button", { name: "البحث في العروض" }));
-    const input = screen.getByPlaceholderText(/اكتب اسم العرض/);
+    const input = screen.getByPlaceholderText(/ابحث في العروض/);
 
     fireEvent.change(input, { target: { value: "ح" } });
     fireEvent.change(input, { target: { value: "حد" } });
@@ -59,7 +59,7 @@ describe("GlobalSearch request control", () => {
   it("aborts the previous request when the query changes", async () => {
     render(<GlobalSearch />);
     fireEvent.click(screen.getByRole("button", { name: "البحث في العروض" }));
-    const input = screen.getByPlaceholderText(/اكتب اسم العرض/);
+    const input = screen.getByPlaceholderText(/ابحث في العروض/);
 
     fireEvent.change(input, { target: { value: "villa" } });
     await act(async () => {

@@ -167,7 +167,7 @@ export function DashboardPage() {
       <aside className="h-fit rounded-[1.5rem] border border-slate-200 bg-slate-950 p-3 text-white shadow-2xl shadow-slate-950/20 lg:sticky lg:top-28">
         <div className="p-3">
           <span className="text-xs font-black uppercase text-amber-300">{t.dashboard}</span>
-          <h1 className="mt-2 text-2xl font-black">{lang === "ar" ? "مركز الإدارة" : "Command center"}</h1>
+          <h1 className="mt-2 text-2xl font-black">{lang === "ar" ? "لوحة التحكم" : "Dashboard"}</h1>
         </div>
         <div className="mt-3 grid gap-1">
           {nav.map((item) => {
@@ -233,8 +233,8 @@ export function DashboardPage() {
               </h1>
               <p className="mt-2 text-sm font-semibold leading-7 text-slate-500">
                 {lang === "ar"
-                  ? "إدارة المحتوى، المزادات، واتجاهات واتساب واللوكيشن من مكان واحد."
-                  : "Manage content, auctions, WhatsApp routing, and locations from one place."}
+                  ? "تابع العروض وأضف محتوى جديدًا وحدّث بيانات الموقع."
+                  : "Manage listings, publish content, and keep website information up to date."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -492,10 +492,7 @@ function SectorEditor({
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-950 text-amber-300">
           <Icon />
         </span>
-        <div>
-          <h3 className="text-xl font-black text-slate-950">{activeLabel}</h3>
-          <small className="font-bold text-slate-500">{sector.id}</small>
-        </div>
+        <h3 className="text-xl font-black text-slate-950">{activeLabel}</h3>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -951,9 +948,9 @@ function ListingForm({
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
             <span className="text-xs font-black uppercase text-amber-300">{title}</span>
-            <h2 className="mt-2 text-3xl font-black">{lang === "ar" ? "نموذج نشر مزاد واضح ومنظم" : "Clear auction publishing workflow"}</h2>
+            <h2 className="mt-2 text-3xl font-black">{lang === "ar" ? "إضافة عرض جديد" : "Add a new listing"}</h2>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-slate-300">
-              {lang === "ar" ? "املأ البيانات حسب الأقسام، وراجع المعاينة والـ SEO قبل الحفظ." : "Fill each section, then review the preview and SEO before saving."}
+              {lang === "ar" ? "أكمل بيانات العرض وصوره، ثم راجعه قبل النشر." : "Add the listing details and images, then review it before publishing."}
             </p>
           </div>
           <div className="min-w-48 rounded-2xl border border-white/10 bg-white/10 p-4">
@@ -1015,9 +1012,7 @@ function ListingForm({
               </Select>
               <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-700 md:col-span-2">
                 <input type="checkbox" checked={draft.featured} onChange={(event) => patchDraft("featured", event.target.checked)} />
-                {lang === "ar"
-                  ? "مميز في الصفحة الرئيسية (الهيرو والكاروسيل)"
-                  : "Featured on the home page (hero and carousel)"}
+                {lang === "ar" ? "مميز في الصفحة الرئيسية" : "Featured on the home page"}
               </label>
             </div>
           </FormSection>
@@ -1108,8 +1103,8 @@ function ListingForm({
           <FormSection title={t.mediaData} icon={FiUploadCloud}>
             <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-7 text-sky-900">
               {lang === "ar"
-                ? "عند الضغط على حفظ ونشر، تُرسل بيانات المزاد والصورة الرئيسية والجاليري والفيديو في طلب واحد. الباك يحفظ المزاد ثم يرفع كل الملفات إلى Cloudinary في الخلفية ويعرض تقدمها هنا."
-                : "Save & publish sends the listing, main image, gallery, and video in one request. The backend saves the listing, then uploads every file to Cloudinary in background workers and reports progress here."}
+                ? "اختر الصورة الرئيسية والصور الإضافية والفيديو. سيظهر تقدم الحفظ هنا."
+                : "Choose the main image, additional images, and video. Saving progress will appear here."}
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               <FileInput disabled={Boolean(savedListing)} accept="image/jpeg,image/png,image/webp,image/gif" label={t.thumbnail} button={t.chooseImage} onChange={(event) => { chooseMedia("thumbnail", event.target.files); event.target.value = ""; }} />
@@ -1119,12 +1114,12 @@ function ListingForm({
 
             {(listing?.media?.length ?? 0) > 0 ? (
               <div className="mt-5 grid gap-3">
-                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات الحالية على الخادم" : "Current server media"}</strong>
+                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الصور والملفات المحفوظة" : "Saved images and files"}</strong>
                 {listing?.media?.map((media) => (
                   <div key={media.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{media.fileName}</strong><MediaBadge value={media.role} /><MediaBadge value={media.status} /></div>
-                      <small className="mt-1 block font-bold text-slate-500">{media.contentType}{media.expectedBytes ? ` · ${mediaSize(media.uploadedBytes)}/${mediaSize(media.expectedBytes)} · ${media.progress}%` : media.bytes ? ` · ${mediaSize(media.bytes)}` : ""}{media.failureReason ? ` · ${media.failureReason}` : ""}</small>
+                      <small className="mt-1 block font-bold text-slate-500">{media.expectedBytes ? `${mediaSize(media.uploadedBytes)}/${mediaSize(media.expectedBytes)} · ${media.progress}%` : media.bytes ? mediaSize(media.bytes) : ""}{media.failureReason ? ` · ${lang === "ar" ? "تعذر حفظ الملف" : "Could not save file"}` : ""}</small>
                     </div>
                     <button disabled={deletingMediaId === media.id || mediaBusy} type="button" onClick={() => void removeExistingMedia(media)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 text-xs font-black text-rose-700 disabled:opacity-50">
                       {deletingMediaId === media.id ? <FiLoader className="animate-spin" /> : <FiTrash2 />}{lang === "ar" ? "حذف الملف" : "Delete media"}
@@ -1136,7 +1131,7 @@ function ListingForm({
 
             {pendingMedia.length ? (
               <div className="mt-5 grid gap-3">
-                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات المختارة وحالة الرفع" : "Selected files and upload status"}</strong>
+                <strong className="text-sm font-black text-slate-800">{lang === "ar" ? "الملفات المختارة" : "Selected files"}</strong>
                 {pendingMedia.map((item) => (
                   <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
@@ -1148,7 +1143,7 @@ function ListingForm({
                         )
                       ) : null}
                       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status === "error" && item.media ? item.media.status : item.status} />{item.status === "error" && item.media ? <MediaBadge value="client-error" /> : null}</div><small className="mt-1 block font-bold text-slate-500">{mediaContentType(item.file)} · {mediaSize(item.file.size)}</small></div>
+                      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm font-black text-slate-900">{item.file.name}</strong><MediaBadge value={item.role} /><MediaBadge value={item.status === "error" && item.media ? item.media.status : item.status} />{item.status === "error" && item.media ? <MediaBadge value="client-error" /> : null}</div><small className="mt-1 block font-bold text-slate-500">{mediaSize(item.file.size)}</small></div>
                       <div className="flex gap-2">
                         {(item.status === "failed" || item.status === "error") && savedListing ? <button disabled={mediaBusy || deletingMediaId === item.mediaId} type="button" onClick={() => void retryMedia(item)} className="h-10 rounded-xl bg-amber-100 px-4 text-xs font-black text-amber-900">{lang === "ar" ? "إعادة المحاولة" : "Retry"}</button> : null}
                         {item.status === "selected" && !savedListing ? <button type="button" onClick={() => { if (item.previewUrl) URL.revokeObjectURL(item.previewUrl); setPendingMedia((current) => current.filter((entry) => entry.key !== item.key)); }} className="h-10 rounded-xl bg-slate-100 px-4 text-xs font-black text-slate-700">{lang === "ar" ? "إزالة" : "Remove"}</button> : null}
@@ -1164,7 +1159,7 @@ function ListingForm({
 
             {savedListing ? (
               <div className="mt-5 flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
-                <div><strong className="block text-sm font-black text-emerald-900">{lang === "ar" ? `تم حفظ الإعلان رقم ${savedListing.id}` : `Listing #${savedListing.id} is saved`}</strong><small className="mt-1 block font-bold text-emerald-700">{lang === "ar" ? "راجع نتائج الملفات بالأعلى؛ يمكنك إنهاء الخطوة حتى لو فشل أحدها." : "Review file results above; you can finish even if an individual upload failed."}</small></div>
+                <div><strong className="block text-sm font-black text-emerald-900">{lang === "ar" ? `تم حفظ العرض رقم ${savedListing.id}` : `Listing #${savedListing.id} is saved`}</strong><small className="mt-1 block font-bold text-emerald-700">{lang === "ar" ? "راجع الصور والملفات قبل إنهاء الخطوة." : "Review the images and files before finishing."}</small></div>
                 <button disabled={mediaBusy} type="button" onClick={onFinished} className="h-11 rounded-full bg-emerald-700 px-5 text-sm font-black text-white disabled:opacity-50">{lang === "ar" ? "إنهاء والعودة للإعلانات" : "Finish and return"}</button>
               </div>
             ) : null}
@@ -1172,14 +1167,14 @@ function ListingForm({
           ) : null}
 
           {step === 5 ? (
-          <FormSection title="SEO" icon={FiSearch}>
+          <FormSection title={lang === "ar" ? "الظهور في نتائج البحث" : "Search appearance"} icon={FiSearch}>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label={`${t.seoTitle} AR`} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
-              <Field label={`${t.seoTitle} EN`} value={draft.seoTitleEn} onChange={(value) => patchDraft("seoTitleEn", value)} />
-              <Textarea label={`${t.seoDescription} AR`} value={draft.seoDescriptionAr} onChange={(value) => patchDraft("seoDescriptionAr", value)} />
-              <Textarea label={`${t.seoDescription} EN`} value={draft.seoDescriptionEn} onChange={(value) => patchDraft("seoDescriptionEn", value)} />
-              <Field label={`${t.seoKeywords} AR`} value={draft.seoKeywordsAr} onChange={(value) => patchDraft("seoKeywordsAr", value)} />
-              <Field label={`${t.seoKeywords} EN`} value={draft.seoKeywordsEn} onChange={(value) => patchDraft("seoKeywordsEn", value)} />
+              <Field label={lang === "ar" ? `${t.seoTitle} بالعربية` : "Arabic search result title"} value={draft.seoTitleAr} onChange={(value) => patchDraft("seoTitleAr", value)} />
+              <Field label={lang === "ar" ? `${t.seoTitle} بالإنجليزية` : "English search result title"} value={draft.seoTitleEn} onChange={(value) => patchDraft("seoTitleEn", value)} />
+              <Textarea label={lang === "ar" ? `${t.seoDescription} بالعربية` : "Arabic search result description"} value={draft.seoDescriptionAr} onChange={(value) => patchDraft("seoDescriptionAr", value)} />
+              <Textarea label={lang === "ar" ? `${t.seoDescription} بالإنجليزية` : "English search result description"} value={draft.seoDescriptionEn} onChange={(value) => patchDraft("seoDescriptionEn", value)} />
+              <Field label={lang === "ar" ? `${t.seoKeywords} بالعربية` : "Arabic search keywords"} value={draft.seoKeywordsAr} onChange={(value) => patchDraft("seoKeywordsAr", value)} />
+              <Field label={lang === "ar" ? `${t.seoKeywords} بالإنجليزية` : "English search keywords"} value={draft.seoKeywordsEn} onChange={(value) => patchDraft("seoKeywordsEn", value)} />
               <Field label={t.seoSlug} value={draft.seoSlug} onChange={(value) => patchDraft("seoSlug", value)} />
             </div>
             <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-5">
@@ -1312,19 +1307,19 @@ const importFieldDefinitions: ImportFieldDefinition[] = [
   { key: "announcementSourceEn", ar: "مصدر الإعلان بالإنجليزية", en: "English source", aliases: ["مصدر الاعلان انجليزي", "source en", "announcement source"] },
   { key: "notesAr", ar: "الملاحظات بالعربية", en: "Arabic notes", aliases: ["الملاحظات العربي", "ملاحظات عربي", "notes ar"] },
   { key: "notesEn", ar: "الملاحظات بالإنجليزية", en: "English notes", aliases: ["الملاحظات الانجليزي", "ملاحظات انجليزي", "notes en", "notes"] },
-  { key: "mapUrl", ar: "رابط الخريطة", en: "Map URL", aliases: ["رابط الخريطة", "map url", "map"] },
+  { key: "mapUrl", ar: "رابط الخريطة", en: "Map link", aliases: ["رابط الخريطة", "map url", "map"] },
   { key: "whatsappPhone", ar: "رقم واتساب", en: "WhatsApp phone", aliases: ["رقم واتساب", "واتساب", "whatsapp", "phone"] },
-  { key: "seoTitleAr", ar: "عنوان SEO بالعربية", en: "Arabic SEO title", aliases: ["عنوان seo عربي", "seo title ar"] },
-  { key: "seoTitleEn", ar: "عنوان SEO بالإنجليزية", en: "English SEO title", aliases: ["عنوان seo انجليزي", "seo title en", "seo title"] },
-  { key: "seoDescriptionAr", ar: "وصف SEO بالعربية", en: "Arabic SEO description", aliases: ["وصف seo عربي", "seo description ar"] },
-  { key: "seoDescriptionEn", ar: "وصف SEO بالإنجليزية", en: "English SEO description", aliases: ["وصف seo انجليزي", "seo description en", "seo description"] },
-  { key: "seoKeywordsAr", ar: "كلمات SEO بالعربية", en: "Arabic SEO keywords", aliases: ["كلمات seo عربي", "seo keywords ar"] },
-  { key: "seoKeywordsEn", ar: "كلمات SEO بالإنجليزية", en: "English SEO keywords", aliases: ["كلمات seo انجليزي", "seo keywords en", "seo keywords"] },
-  { key: "seoSlug", ar: "رابط الإعلان", en: "SEO slug", aliases: ["الرابط", "slug", "seo slug"] },
+  { key: "seoTitleAr", ar: "عنوان نتيجة البحث بالعربية", en: "Arabic search result title", aliases: ["عنوان seo عربي", "seo title ar"] },
+  { key: "seoTitleEn", ar: "عنوان نتيجة البحث بالإنجليزية", en: "English search result title", aliases: ["عنوان seo انجليزي", "seo title en", "seo title"] },
+  { key: "seoDescriptionAr", ar: "وصف نتيجة البحث بالعربية", en: "Arabic search result description", aliases: ["وصف seo عربي", "seo description ar"] },
+  { key: "seoDescriptionEn", ar: "وصف نتيجة البحث بالإنجليزية", en: "English search result description", aliases: ["وصف seo انجليزي", "seo description en", "seo description"] },
+  { key: "seoKeywordsAr", ar: "كلمات البحث بالعربية", en: "Arabic search keywords", aliases: ["كلمات seo عربي", "seo keywords ar"] },
+  { key: "seoKeywordsEn", ar: "كلمات البحث بالإنجليزية", en: "English search keywords", aliases: ["كلمات seo انجليزي", "seo keywords en", "seo keywords"] },
+  { key: "seoSlug", ar: "رابط الإعلان", en: "Listing link", aliases: ["الرابط", "slug", "seo slug"] },
   { key: "featured", ar: "إعلان مميز", en: "Featured", aliases: ["مميز", "featured"] },
-  { key: "specifications", ar: "المواصفات (JSON)", en: "Specifications (JSON)", aliases: ["المواصفات", "المواصفات json", "specifications", "specifications json", "specs"] },
-  { key: "thumbnailImage", ar: "الصورة الرئيسية المدمجة", en: "Embedded thumbnail", aliases: ["الصورة الرئيسية", "صورة رئيسية", "main thumbnail", "thumbnail"], primary: true },
-  { key: "galleryImages", ar: "صور الجاليري المدمجة", en: "Embedded gallery images", aliases: ["صور الجاليري", "صور اضافية", "gallery images", "gallery"], primary: true },
+  { key: "specifications", ar: "المواصفات", en: "Specifications", aliases: ["المواصفات", "المواصفات json", "specifications", "specifications json", "specs"] },
+  { key: "thumbnailImage", ar: "الصورة الرئيسية", en: "Main image", aliases: ["الصورة الرئيسية", "صورة رئيسية", "main thumbnail", "thumbnail"], primary: true },
+  { key: "galleryImages", ar: "صور إضافية", en: "Additional images", aliases: ["صور الجاليري", "صور اضافية", "gallery images", "gallery"], primary: true },
 ];
 
 type ImportedListingMedia = ListingInitialMedia;
@@ -1484,9 +1479,9 @@ function importedDraftMissing(draft: ListingDraft, lang: "ar" | "en", hasThumbna
     [draft.priceLabelAr, "السعر بالعربية", "Arabic price"],
     [draft.priceLabelEn, "السعر بالإنجليزية", "English price"],
     [draft.measureLabel, "المساحة أو الكمية", "Measure / quantity"],
-    [draft.seoTitleAr || draft.seoTitleEn, "عنوان SEO", "SEO title"],
-    [draft.seoDescriptionAr || draft.seoDescriptionEn, "وصف SEO", "SEO description"],
-    [draft.seoKeywordsAr || draft.seoKeywordsEn, "كلمات SEO", "SEO keywords"],
+    [draft.seoTitleAr || draft.seoTitleEn, "عنوان نتيجة البحث", "Search result title"],
+    [draft.seoDescriptionAr || draft.seoDescriptionEn, "وصف نتيجة البحث", "Search result description"],
+    [draft.seoKeywordsAr || draft.seoKeywordsEn, "كلمات البحث", "Search keywords"],
   ];
   return [
     ...(fields.filter(([value]) => !value.trim()).map(([, ar, en]) => lang === "ar" ? ar : en)),
@@ -1605,7 +1600,7 @@ function ListingImportWizard() {
                   ))}
                 </div>
                 <details className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <summary className="cursor-pointer text-sm font-black text-slate-700">{lang === "ar" ? "الأعمدة الاختيارية: المواعيد والجهة والـSEO" : "Optional columns: dates, beneficiary, and SEO"}</summary>
+                  <summary className="cursor-pointer text-sm font-black text-slate-700">{lang === "ar" ? "بيانات إضافية للعرض" : "Additional listing details"}</summary>
                   <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {importFieldDefinitions.filter((field) => !field.primary).map((field) => (
                       <ImportMappingSelect key={field.key} field={field} columns={preview.columns} value={mapping[field.key] || ""} lang={lang} onChange={(value) => setMapping((current) => ({ ...current, [field.key]: value || undefined }))} />
@@ -2006,7 +2001,7 @@ function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete, onUpl
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!draft.image && !heroFile) {
-      setError(lang === "ar" ? "صورة الـHero مطلوبة." : "A hero image is required.");
+      setError(lang === "ar" ? "الصورة الرئيسية مطلوبة." : "A main image is required.");
       return;
     }
     setBusy(true);
@@ -2038,17 +2033,17 @@ function ServicesContentPanel({ kind, services, onAdd, onUpdate, onDelete, onUpl
     <Panel title={lang === "ar" ? "إدارة مقالات القطاعات" : "Manage sector articles"} icon={FiFileText}>
       {error ? <div className="mb-5"><AdminError message={error} /></div> : null}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_480px]">
-        <div className="grid content-start gap-3">{services.filter((item) => item.kind === kind).map((item) => <article key={item.id} className="grid gap-4 rounded-3xl border border-slate-200 p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:items-center"><LazyImage src={item.image} alt="" className="h-20 w-full rounded-2xl object-cover sm:w-20"/><div><strong className="block text-lg font-black">{item.title[lang]}</strong><small className="mt-1 block font-bold text-slate-500">{item.slug} · #{item.displayOrder ?? 0}</small></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => edit(item)} className="h-10 rounded-xl border px-4 text-sm font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void remove(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div>
+        <div className="grid content-start gap-3">{services.filter((item) => item.kind === kind).map((item) => <article key={item.id} className="grid gap-4 rounded-3xl border border-slate-200 p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:items-center"><LazyImage src={item.image} alt="" className="h-20 w-full rounded-2xl object-cover sm:w-20"/><strong className="block text-lg font-black">{item.title[lang]}</strong><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => edit(item)} className="h-10 rounded-xl border px-4 text-sm font-black">{lang === "ar" ? "تعديل" : "Edit"}</button><button type="button" disabled={busy} onClick={() => void remove(item.id)} className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-700"><FiTrash2 /></button></div></article>)}</div>
         <form onSubmit={submit} className="grid h-fit gap-4 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
-          <div className="flex items-center justify-between"><div><span className="text-xs font-black uppercase text-amber-700">{lang === "ar" ? "مقال + Hero + SEO" : "Article + hero + SEO"}</span><h3 className="mt-1 text-xl font-black">{editing ? (lang === "ar" ? "تعديل المقال" : "Edit article") : (lang === "ar" ? "إضافة مقال" : "Add article")}</h3></div>{editing && <button type="button" onClick={() => reset(kind)} className="text-sm font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button>}</div>
+          <div className="flex items-center justify-between"><div><span className="text-xs font-black uppercase text-amber-700">{lang === "ar" ? "محتوى القسم" : "Section content"}</span><h3 className="mt-1 text-xl font-black">{editing ? (lang === "ar" ? "تعديل المقال" : "Edit article") : (lang === "ar" ? "إضافة مقال" : "Add article")}</h3></div>{editing && <button type="button" onClick={() => reset(kind)} className="text-sm font-black text-slate-500">{lang === "ar" ? "إلغاء" : "Cancel"}</button>}</div>
           <Select label={lang === "ar" ? "القسم" : "Section"} value={draft.kind} onChange={(value) => patch("kind", value as ServiceKind)}><option value="arbitration">{lang === "ar" ? "قطاعات التحكيم" : "Arbitration"}</option><option value="valuation">{lang === "ar" ? "التقييمات ودراسات الجدوى" : "Valuation"}</option><option value="consulting">{lang === "ar" ? "الاستشارات" : "Consulting"}</option></Select>
           <Field label="العنوان بالعربية" value={draft.titleAr} onChange={(v) => patch("titleAr", v)} required/><Field label="Title in English" value={draft.titleEn} onChange={(v) => patch("titleEn", v)} required/>
           <Textarea label="ملخص بالعربية" value={draft.summaryAr} onChange={(v) => patch("summaryAr", v)}/><Textarea label="English summary" value={draft.summaryEn} onChange={(v) => patch("summaryEn", v)}/>
           <div className="grid gap-3 sm:grid-cols-2"><Field type="number" label={lang === "ar" ? "ترتيب الظهور" : "Display order"} value={String(draft.displayOrder)} onChange={(value) => patch("displayOrder", Math.max(0, Number(value) || 0))} /><label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black"><input type="checkbox" checked={draft.featured} onChange={(event) => patch("featured", event.target.checked)} className="h-5 w-5 accent-amber-500" />{lang === "ar" ? "مميز في الرئيسية" : "Featured on home"}</label></div>
-          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "صورة الـHero" : "Hero image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} onChange={chooseHero}/>{heroPreview || draft.image ? <LazyImage src={heroPreview || draft.image} alt="" className="h-44 w-full rounded-2xl object-cover"/> : null}
-          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "صور الجاليري" : "Gallery images"} button={lang === "ar" ? "اختيار صور" : "Choose images"} multiple onChange={chooseGallery}/>{draft.gallery.length || galleryPreviews.length ? <div className="grid grid-cols-3 gap-2">{[...draft.gallery, ...galleryPreviews].map((image, index) => <div key={`${image.slice(0, 24)}-${index}`} className="relative"><LazyImage src={image} alt="" className="h-20 w-full rounded-xl object-cover"/><button type="button" onClick={() => index < draft.gallery.length ? patch("gallery", draft.gallery.filter((_, itemIndex) => itemIndex !== index)) : (() => { const fileIndex = index - draft.gallery.length; setGalleryFiles((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); setGalleryPreviews((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); })()} className="absolute end-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-slate-950/80 text-white"><FiX /></button></div>)}</div> : null}
+          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "الصورة الرئيسية" : "Main image"} button={lang === "ar" ? "اختيار صورة" : "Choose image"} onChange={chooseHero}/>{heroPreview || draft.image ? <LazyImage src={heroPreview || draft.image} alt="" className="h-44 w-full rounded-2xl object-cover"/> : null}
+          <FileInput accept="image/jpeg,image/png,image/webp,image/gif" label={lang === "ar" ? "صور إضافية" : "Additional images"} button={lang === "ar" ? "اختيار صور" : "Choose images"} multiple onChange={chooseGallery}/>{draft.gallery.length || galleryPreviews.length ? <div className="grid grid-cols-3 gap-2">{[...draft.gallery, ...galleryPreviews].map((image, index) => <div key={`${image.slice(0, 24)}-${index}`} className="relative"><LazyImage src={image} alt="" className="h-20 w-full rounded-xl object-cover"/><button type="button" onClick={() => index < draft.gallery.length ? patch("gallery", draft.gallery.filter((_, itemIndex) => itemIndex !== index)) : (() => { const fileIndex = index - draft.gallery.length; setGalleryFiles((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); setGalleryPreviews((current) => current.filter((_, itemIndex) => itemIndex !== fileIndex)); })()} className="absolute end-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-slate-950/80 text-white"><FiX /></button></div>)}</div> : null}
           <RichTextEditor label="محتوى المقال بالعربية" value={draft.contentAr} onChange={(v) => patch("contentAr", v)} placeholder="اكتب المحتوى ونسقه مثل Word"/><RichTextEditor label="Article content in English" value={draft.contentEn} onChange={(v) => patch("contentEn", v)} placeholder="Write and format the article"/>
-          <details className="rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-black">SEO</summary><div className="mt-4 grid gap-3"><Field label="SEO title AR" value={draft.seoTitleAr} onChange={(v) => patch("seoTitleAr", v)}/><Field label="SEO title EN" value={draft.seoTitleEn} onChange={(v) => patch("seoTitleEn", v)}/><Textarea label="SEO description AR" value={draft.seoDescriptionAr} onChange={(v) => patch("seoDescriptionAr", v)}/><Textarea label="SEO description EN" value={draft.seoDescriptionEn} onChange={(v) => patch("seoDescriptionEn", v)}/><Field label="SEO keywords AR" value={draft.seoKeywordsAr} onChange={(v) => patch("seoKeywordsAr", v)}/><Field label="SEO keywords EN" value={draft.seoKeywordsEn} onChange={(v) => patch("seoKeywordsEn", v)}/></div></details>
+          <details className="rounded-2xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-black">{lang === "ar" ? "الظهور في نتائج البحث" : "Search appearance"}</summary><div className="mt-4 grid gap-3"><Field label={lang === "ar" ? "عنوان نتيجة البحث بالعربية" : "Arabic search result title"} value={draft.seoTitleAr} onChange={(v) => patch("seoTitleAr", v)}/><Field label={lang === "ar" ? "عنوان نتيجة البحث بالإنجليزية" : "English search result title"} value={draft.seoTitleEn} onChange={(v) => patch("seoTitleEn", v)}/><Textarea label={lang === "ar" ? "وصف نتيجة البحث بالعربية" : "Arabic search result description"} value={draft.seoDescriptionAr} onChange={(v) => patch("seoDescriptionAr", v)}/><Textarea label={lang === "ar" ? "وصف نتيجة البحث بالإنجليزية" : "English search result description"} value={draft.seoDescriptionEn} onChange={(v) => patch("seoDescriptionEn", v)}/><Field label={lang === "ar" ? "كلمات البحث بالعربية" : "Arabic search keywords"} value={draft.seoKeywordsAr} onChange={(v) => patch("seoKeywordsAr", v)}/><Field label={lang === "ar" ? "كلمات البحث بالإنجليزية" : "English search keywords"} value={draft.seoKeywordsEn} onChange={(v) => patch("seoKeywordsEn", v)}/></div></details>
           <button disabled={busy} type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-black text-white disabled:opacity-60">{busy ? <FiLoader className="animate-spin" /> : <FiSave />}{busy ? (lang === "ar" ? "جاري الرفع والحفظ..." : "Uploading and saving...") : (lang === "ar" ? "حفظ ونشر" : "Save & publish")}</button>
         </form>
       </div>
@@ -2130,8 +2125,8 @@ function SettingsPanel({ settings, onSubmit }: { settings: AppSettings; onSubmit
 
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-7 text-amber-900">
             {lang === "ar"
-              ? "تقدر تستخدم {title} لاسم المزاد، {category} للتصنيف، و {id} لرقم المزاد داخل رسالة الواتساب."
-              : "You can use {title} for the auction name, {category} for category, and {id} for the auction id inside the WhatsApp message."}
+              ? "يُضاف اسم العرض وقسمه ورقمه تلقائيًا إلى رسالة واتساب."
+              : "The listing title, category, and number are added to the WhatsApp message automatically."}
           </div>
         </div>
       </Panel>
@@ -2181,6 +2176,7 @@ function SmallMetric({ label, value, hint }: { label: string; value: number | st
 }
 
 function MediaBadge({ value }: { value: string }) {
+  const { lang } = useApp();
   const tone = value === "ready"
     ? "bg-emerald-100 text-emerald-800"
     : value === "failed" || value === "error" || value === "client-error"
@@ -2188,7 +2184,20 @@ function MediaBadge({ value }: { value: string }) {
       : value === "sending" || value === "uploading" || value === "processing"
         ? "bg-amber-100 text-amber-800"
         : "bg-slate-100 text-slate-700";
-  return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}>{value}</span>;
+  const labels: Record<string, { ar: string; en: string }> = {
+    thumbnail: { ar: "صورة رئيسية", en: "Main image" },
+    gallery: { ar: "صورة إضافية", en: "Additional image" },
+    video: { ar: "فيديو", en: "Video" },
+    selected: { ar: "جاهز للحفظ", en: "Ready to save" },
+    sending: { ar: "جاري الحفظ", en: "Saving" },
+    uploading: { ar: "جاري الحفظ", en: "Saving" },
+    processing: { ar: "جاري التجهيز", en: "Preparing" },
+    ready: { ar: "تم الحفظ", en: "Saved" },
+    failed: { ar: "تعذر الحفظ", en: "Save failed" },
+    error: { ar: "تعذر الحفظ", en: "Save failed" },
+    "client-error": { ar: "تعذر الحفظ", en: "Save failed" },
+  };
+  return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${tone}`}>{labels[value]?.[lang] ?? value}</span>;
 }
 
 function DataChip({ children }: { children: ReactNode }) {
